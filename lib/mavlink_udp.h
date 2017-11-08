@@ -3,24 +3,14 @@
 *******************************************************************************/
 
 
-
-/*
-NOTES
-Still not sure about the enum since every mavlink packet type already has a
-unique ID defined in it's header for example in mavlink_msg_attitude.h
-#define MAVLINK_MSG_ID_ATTITUDE 30
-
-We could just have arrays of callback pointers instead of one big switch statement
-to decide which to call. Thoughts?
-*/
-
-
 #ifndef RC_MAVLINK_UDP
 #define RC_MAVLINK_UDP
 
+#include <stdint.h>		// for specific integer types
+#include "mavlink/mavlink.h"	// open-source mavlink definitions
 
-
-#define RC_MAVLINK_DEFAULT_PORT	14550
+// default port for UDP communications
+#define RC_MAVLINK_DEFAULT_PORT	14551
 
 /*
 // List of the most common mavlink packets which have helper functions built
@@ -42,8 +32,15 @@ typedef enum rc_mav_packet_type_t{
 } rc_mav_packet_type_t;
 */
 
-// Setup functions
+// Sending Functions
 int rc_mav_init_sender(int port, const char* dest_ip, uint8_t system_id);
+
+
+
+
+
+
+
 int rc_mav_init_listener(int port);
 
 // Cleanup functions
