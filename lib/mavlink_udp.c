@@ -140,17 +140,6 @@ rc_mavlink_socket_t* rc_mav_init_server(int port){
 	return sock;
 }
 
-pthread_t* rc_mav_init_listener(rc_mavlink_socket_t* sock){
-	pthread_t* listener_thread = (pthread_t*)malloc(sizeof(pthread_t));
-	pthread_create(listener_thread, NULL, &_rc_mav_listen_for_udp, sock);
-	return listener_thread;
-}
-
-int rc_mav_cleanup_listener(pthread_t* listener_thread){
-	pthread_join(*listener_thread, NULL);
-	free(listener_thread);
-	return 0;
-}
 
 int rc_mav_cleanup_socket(rc_mavlink_socket_t* sock){
 	if (sock->initialized){
@@ -190,13 +179,38 @@ int _rc_mav_send_message(rc_mavlink_socket_t* sock, mavlink_message_t* msg){
 	return 0;
 }
 
-void* _rc_mav_listen_for_udp(rc_mavlink_socket_t* sock){
-	while (get_state() != EXITING){
-		usleep(RC_SERVER_SLEEP_TIME);
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//  LISTENING STUFF
+////////////////////////////////////////////////////////////////////////////////
+
+int rc_mav_init_listener(int port){
+	pthread_t* listener_thread = (pthread_t*)malloc(sizeof(pthread_t));
+	pthread_create(listener_thread, NULL, &_rc_mav_listen_for_udp, NULL);
+	return listener_thread;
+}
+
+int rc_mav_cleanup_listener(pthread_t* listener_thread){
+	pthread_join(*listener_thread, NULL);
+	free(listener_thread);
+	return 0;
+}
+
+
+
+
+// local thread blocking on UDP socket
+// exits on shutdown flag
+void* udp_listener(){
+	while(shutdown_flag == 0){
 
 		// Read message
 		sock->last_msg_len = recvfrom(sock->sock_fd, sock->sock_buf, SOCK_BUF_LEN,
-									  0, &(sock->sock_other), &(sock->sock_len));
+					0, &(sock->sock_other), &(sock->sock_len));
 
 		// Handle message
 		if (sock->last_msg_len != 0){
@@ -213,17 +227,12 @@ void* _rc_mav_listen_for_udp(rc_mavlink_socket_t* sock){
 				continue;
 			}
 		}
-		_rc_mav_interpret_udp_packet(sock);
+		handle_mav_packet();
 	}
 	return 0;
 }
 
-int _rc_mav_interpret_udp_packet(rc_mavlink_socket_t* sock){
-	_rc_mav_handle_mav_packet(sock);
-	return 0;
-}
-
-int _rc_mav_handle_mav_packet(rc_mavlink_socket_t* sock){
+int handle_mav_packet(rc_mavlink_socket_t* sock){
 	//uint8_t c = sock->sock_buf[0];
 	mavlink_message_t msg;
 	mavlink_status_t status;
