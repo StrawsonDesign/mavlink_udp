@@ -15,7 +15,7 @@
 
 
 // Sending Initialization
-int rc_mav_init_sender(int port, const char* dest_ip, uint8_t system_id);
+int rc_mav_init_sender(uint16_t port, const char* dest_ip, uint8_t system_id);
 int rc_mav_set_dest_ip(const char* dest_ip);
 int rc_mav_set_system_id(uint8_t system_id);
 int rc_mav_cleanup_sender();
@@ -36,9 +36,6 @@ int rc_mav_send_heartbeat_full(
 	uint8_t base_mode,	// System mode bitfield, see MAV_MODE_FLAGS ENUM in mavlink/include/mavlink_types.h
 	uint8_t system_status);	// System status flag, see MAV_STATE ENUM
 
-
-
-
 int rc_mav_send_attitude(
 	float roll,		// Roll angle (rad, -pi..+pi)
 	float pitch,		// Pitch angle (rad, -pi..+pi)
@@ -46,9 +43,6 @@ int rc_mav_send_attitude(
 	float rollspeed,	// Roll angular speed (rad/s)
 	float pitchspeed,	// Pitch angular speed (rad/s)
 	float yawspeed);	// Yaw angular speed (rad/s)
-
-
-
 
 int rc_mav_send_attitude_quaternion(
 	float q1,		// Quaternion component 1
@@ -59,9 +53,6 @@ int rc_mav_send_attitude_quaternion(
 	float pitchspeed,	// Pitch angular speed (rad/s)
 	float yawspeed);	// Yaw angular speed (rad/s)
 
-
-
-
 int rc_mav_send_local_position_ned(
 	float x,		// X Position
 	float y,		// Y Position
@@ -70,18 +61,12 @@ int rc_mav_send_local_position_ned(
 	float vy,		// Y Speed
 	float vz);		// Z Speed
 
-
-
-
 int rc_mav_send_local_position_setpoint(
 	float x,		// x position
 	float y,		// y position
 	float z,		// z position
 	float yaw,		// Desired yaw angle
 	uint8_t coordinate_frame);// Coordinate frame - valid values are only MAV_FRAME_LOCAL_NED or MAV_FRAME_LOCAL_ENU
-
-
-
 
 int rc_mav_send_global_position_int(
 	int32_t lat,		// Latitude, expressed as * 1E7
@@ -93,16 +78,12 @@ int rc_mav_send_global_position_int(
 	int16_t vz,		// Ground Z Speed (Altitude), expressed as m/s * 100
 	uint16_t hdg);		// Compass heading in degrees * 100, 0.0..359.99 degrees. If unknown, set to: UINT16_MAX
 
-
-
-
 int rc_mav_send_global_position_setpoint_int(
 	int32_t latitude,		// Latitude (WGS84), in degrees * 1E7
 	int32_t longitude,		// Longitude (WGS84), in degrees * 1E7
 	int32_t altitude,		// Altitude (WGS84), in meters * 1000 (positive for up)
 	int16_t yaw,			// Desired yaw angle in degrees * 100
 	uint8_t coordinate_frame);	// Coordinate frame - valid values are only MAV_FRAME_GLOBAL or MAV_FRAME_GLOBAL_RELATIVE_ALT
-
 
 int rc_mav_send_global_vision_position_estimate(
 	uint64_t usec,		// Timestamp (microseconds, synced to UNIX time or since system boot)
@@ -112,8 +93,6 @@ int rc_mav_send_global_vision_position_estimate(
 	float roll,		// Roll angle in rad
 	float pitch,		// Pitch angle in rad
 	float yaw);		// Yaw angle in rad
-
-
 
 int rc_mav_send_battery(
 	int32_t current_consumed,	// Consumed charge, in milliampere hours (1 = 1 mAh), -1: autopilot does not provide mAh consumption estimate
@@ -128,7 +107,6 @@ int rc_mav_send_battery(
 	uint8_t accu_id,		// Accupack ID
 	int8_t battery_remaining);	// Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot does not estimate the remaining battery
 
-
 int rc_mav_send_gps_raw_int(
 	int32_t lat,			// Latitude (WGS84), in degrees * 1E7
 	int32_t lon,			// Longitude (WGS84), in degrees * 1E7
@@ -140,8 +118,6 @@ int rc_mav_send_gps_raw_int(
 	uint8_t fix_type,		// 0-1: no fix, 2: 2D fix, 3: 3D fix. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.
 	uint8_t satellites_visible);	// Number of satellites visible. If unknown, set to 255
 
-
-
 int rc_mav_send_manual_control(
 	int16_t x,		// X-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to forward(1000)-backward(-1000) movement on a joystick and the pitch of a vehicle.
 	int16_t y,		// Y-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to left(-1000)-right(1000) movement on a joystick and the roll of a vehicle.
@@ -149,9 +125,6 @@ int rc_mav_send_manual_control(
 	int16_t r,		// R-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to a twisting of the joystick, with counter-clockwise being 1000 and clockwise being -1000, and the yaw of a vehicle.
 	uint16_t buttons,	// A bitfield corresponding to the joystick buttons' current state, 1 for pressed, 0 for released. The lowest bit corresponds to Button 1.
 	uint8_t target);	// The system to be controlled.
-
-
-
 
 int rc_mav_send_rc_channels_scaled(
 	int16_t chan1_scaled,	// RC channel 1 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
@@ -165,9 +138,37 @@ int rc_mav_send_rc_channels_scaled(
 	uint8_t port,		// Servo output port (set of 8 outputs = 1 port). Most MAVs will just use one, but this allows for more than 8 servos.
 	uint8_t rssi);		// Receive signal strength indicator, 0: 0%, 100: 100%, 255: invalid/unknown.
 
+int rc_mav_send_raw_pressure(
+	int16_t press_abs,	// Absolute pressure (raw)
+	int16_t press_diff1,	// Differential pressure 1 (raw)
+	int16_t press_diff2,	// Differential pressure 2 (raw)
+	int16_t temperature);	// Raw Temperature measurement (raw))
 
+int rc_mav_send_servo_output_raw(
+	uint16_t servo1_raw,	// Servo output 1 value, in microseconds
+	uint16_t servo2_raw,	// Servo output 2 value, in microseconds
+	uint16_t servo3_raw,	// Servo output 3 value, in microseconds
+	uint16_t servo4_raw,	// Servo output 4 value, in microseconds
+	uint16_t servo5_raw,	// Servo output 5 value, in microseconds
+	uint16_t servo6_raw,	// Servo output 6 value, in microseconds
+	uint16_t servo7_raw,	// Servo output 7 value, in microseconds
+	uint16_t servo8_raw,	// Servo output 8 value, in microseconds
+	uint8_t port);		// Servo output port (set of 8 outputs = 1 port). Most MAVs will just use one, but this allows to encode more than 8 servos.
 
-
+int rc_mav_send_sys_status(
+	uint32_t onboard_control_sensors_present,// Bitmask showing which onboard controllers and sensors are present. Value of 0: not present. Value of 1: present. Indices defined by ENUM MAV_SYS_STATUS_SENSOR
+	uint32_t onboard_control_sensors_enabled,// Bitmask showing which onboard controllers and sensors are enabled:  Value of 0: not enabled. Value of 1: enabled. Indices defined by ENUM MAV_SYS_STATUS_SENSOR
+	uint32_t onboard_control_sensors_health,// Bitmask showing which onboard controllers and sensors are operational or have an error:  Value of 0: not enabled. Value of 1: enabled. Indices defined by ENUM MAV_SYS_STATUS_SENSOR
+	uint16_t load,				// Maximum usage in percent of the mainloop time, (0%: 0, 100%: 1000) should be always below 1000
+	uint16_t voltage_battery,		// Battery voltage, in millivolts (1 = 1 millivolt)
+	int16_t current_battery,		// Battery current, in 10*milliamperes (1 = 10 milliampere), -1: autopilot does not measure the current
+	uint16_t drop_rate_comm,		// Communication drops in percent, (0%: 0, 100%: 10'000), (UART, I2C, SPI, CAN), dropped packets on all links (packets that were corrupted on reception on the MAV)
+	uint16_t errors_comm,			// Communication errors (UART, I2C, SPI, CAN), dropped packets on all links (packets that were corrupted on reception on the MAV)
+	uint16_t errors_count1,			// Autopilot-specific errors
+	uint16_t errors_count2,			// Autopilot-specific errors
+	uint16_t errors_count3,			// Autopilot-specific errors
+	uint16_t errors_count4,			// Autopilot-specific errors
+	int8_t battery_remaining);		// Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot estimate the remaining battery
 
 
 
@@ -189,19 +190,18 @@ int64_t rc_mav_ns_since_last_message(int msg_id);
 int rc_mav_get_heartbeat_full(__mavlink_heartbeat_t* data);
 int rc_mav_get_attitude(___mavlink_attitude_t* data);
 int rc_mav_get_attitude_quaternion(___mavlink_attitude_quaternion_t* data);
-int rc_mav_get__local_position_setpoint(___mavlink__local_position_setpoint_t* data);
-int rc_mav_get__global_position_int(___mavlink__global_position_int_t* data);
-int rc_mav_get__global_position_setpoint_int(___mavlink__global_position_setpoint_int_t* data);
-int rc_mav_get__global_vision_position_estimate(___mavlink__global_vision_position_estimate_t* data);
-int rc_mav_get__battery(___mavlink__battery_t* data);
-int rc_mav_get__gps_raw_int(___mavlink__gps_raw_int_t* data);
-int rc_mav_get__manual_control(___mavlink__manual_control_t* data);
-int rc_mav_get__local_position_ned(___mavlink__local_position_ned_t* data);
-int rc_mav_get__rc_channels_scaled(___mavlink__rc_channels_scaled_t* data);
-
-
-
-
+int rc_mav_get_local_position_setpoint(___mavlink__local_position_setpoint_t* data);
+int rc_mav_get_global_position_int(___mavlink__global_position_int_t* data);
+int rc_mav_get_global_position_setpoint_int(___mavlink__global_position_setpoint_int_t* data);
+int rc_mav_get_global_vision_position_estimate(___mavlink__global_vision_position_estimate_t* data);
+int rc_mav_get_battery(___mavlink__battery_t* data);
+int rc_mav_get_gps_raw_int(___mavlink__gps_raw_int_t* data);
+int rc_mav_get_manual_control(___mavlink__manual_control_t* data);
+int rc_mav_get_local_position_ned(___mavlink__local_position_ned_t* data);
+int rc_mav_get_rc_channels_scaled(___mavlink__rc_channels_scaled_t* data);
+int rc_mav_get_raw_pressure(___mavlink___raw_pressure_t* data);
+int rc_mav_get_servo_output_raw(__mavlink__servo_output_raw_t* data);
+int rc_mav_get_sys_status(mavlink_sys_status_t);
 
 #endif /* RC_MAVLINK_UDP */
 
