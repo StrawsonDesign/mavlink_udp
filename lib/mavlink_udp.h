@@ -27,9 +27,9 @@ int rc_mav_cleanup_sender();
 int rc_mav_send_msg(mavlink_message_t msg);
 
 // helper functions for most common packets, removes the need for packing your own
-int rc_mav_send_heartbeat();
+int rc_mav_send_heartbeat_abbreviated();
 
-int rc_mav_send_heartbeat_full(
+int rc_mav_send_heartbeat(
 	uint32_t custom_mode,	// A bitfield for use for autopilot-specific flags.
 	uint8_t type,		// Type of the MAV (quadrotor, helicopter, etc., up to 15 types, defined in MAV_TYPE ENUM)
 	uint8_t autopilot,	// Autopilot type / class. defined in MAV_AUTOPILOT ENUM
@@ -170,21 +170,28 @@ int rc_mav_send_sys_status(
 	uint16_t errors_count4,			// Autopilot-specific errors
 	int8_t battery_remaining);		// Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot estimate the remaining battery
 
+int rc_mav_att_pos_mocap(
+	float q[4],	// Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
+	float x,	// X position in meters (NED)
+	float y,	// Y position in meters (NED)
+	float z);	// Z position in meters (NED)
 
 
 
 // receiving initialization
-int rc_mav_init_listener(int port);
+int rc_mav_init_listener(uint16_t port);
 int rc_mav_cleanup_listener();
-
 
 // assign a callback function to be called when a message is received.
 int rc_mav_set_callback(int msg_id, void (*func)(void));
+int rc_mav_set_callback_all(void (*func)(void));
 
 // returns the last received packet of type message
-int rc_mav_is_new_message(int msg_id);
-int rc_mav_get_message(int msg_id, mavlink_message_t* msg);
-int64_t rc_mav_ns_since_last_message(int msg_id);
+int rc_mav_is_new_msg(int msg_id);
+int rc_mav_get_msg(int msg_id, mavlink_message_t* msg);
+int64_t rc_mav_ns_since_last_msg(int msg_id);
+int rc_mav_print_msg_name(int msg_id);
+int rc_mav_id_of_last_msg();
 
 // extra helper functions for common packets so the user doesn't have to decode messages
 int rc_mav_get_heartbeat_full(__mavlink_heartbeat_t* data);
@@ -201,7 +208,8 @@ int rc_mav_get_local_position_ned(___mavlink__local_position_ned_t* data);
 int rc_mav_get_rc_channels_scaled(___mavlink__rc_channels_scaled_t* data);
 int rc_mav_get_raw_pressure(___mavlink___raw_pressure_t* data);
 int rc_mav_get_servo_output_raw(__mavlink__servo_output_raw_t* data);
-int rc_mav_get_sys_status(mavlink_sys_status_t);
+int rc_mav_get_sys_status(__mavlink_sys_status_t);
+int rc_mav_get_att_pos_mocap(__mavlink_att_pos_mocap_t);
 
 #endif /* RC_MAVLINK_UDP */
 
