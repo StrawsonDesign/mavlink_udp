@@ -6,6 +6,7 @@ int main(int argc, char * argv[])
     if (rc_mav_init(1, my_address, 40000) < 0){
         return -1;
     }
+    printf("Sending heartbeat message every 1 second...\n");
     while (1){
         sleep(1);
         rc_mav_send_heartbeat_abbreviated();
