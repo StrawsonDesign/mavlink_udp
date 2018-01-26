@@ -109,6 +109,7 @@ void * rc_mav_listen(){
 	while (shutdown_flag==0){
 		rc_mav_recv_msg();
 	}
+	printf("exiting rc_mav_listen\n");
 	rc_mav_cleanup_listener();
 	return 0;
 }
@@ -122,7 +123,6 @@ int rc_mav_recv_msg(){
 
 	memset(buf, 0, BUFFER_LENGTH);
 	num_bytes_rcvd = recvfrom(sock_fd, buf, BUFFER_LENGTH, 0, (struct sockaddr *) &my_address, &addr_len);
-
 	// Something received - print out all bytes and parse packet
 	//#ifdef DEBUG
 	if(num_bytes_rcvd < 0){
@@ -203,13 +203,13 @@ int rc_mav_send_heartbeat_abbreviated(){
 }
 
 int rc_mav_cleanup_listener(){
+	printf("%d\n",7);
 	if(init_flag==0 || listening_flag==0){
 		fprintf(stderr, "WARNING, trying to cleanup mavlink listener when it's not running\n");
 		return -1;
 	}
 	listening_flag=0;
-	// set flag so thread shuts itself down
-	shutdown_flag=1;
+/*
 	// wait for thread to join
 	struct timespec thread_timeout;
 	clock_gettime(CLOCK_REALTIME, &thread_timeout);
@@ -218,6 +218,11 @@ int rc_mav_cleanup_listener(){
 	thread_err = pthread_timedjoin_np(listener_thread, NULL, &thread_timeout);
 	if(thread_err == ETIMEDOUT){
 		printf("WARNING: in rc_mav_cleanup_listener, exit timeout\n");
+		return -1;
+	}
+*/
+	if(pthread_join(listener_thread,NULL)){
+		perror("ERROR: in rc_mav_cleanup_listener: ");
 		return -1;
 	}
 	init_flag=0;
@@ -233,7 +238,7 @@ int rc_mav_address_init(struct sockaddr_in * address, const char* dest_ip, int p
 	memset((char*) address, 0, sizeof address);
 	address->sin_family = AF_INET;
 	address->sin_port = htons(port);
-	address->sin_addr.s_addr = ((int)dest_ip==0) ? htonl(INADDR_ANY) : inet_addr(dest_ip);
+	address->sin_addr.s_addr = ((long)dest_ip==0) ? htonl(INADDR_ANY) : inet_addr(dest_ip);
 	return 0;
 }
 
