@@ -2,7 +2,7 @@
 * mavlink_udp.h
 *******************************************************************************/
 
-#define _GNU_SORUCE // for pthread_timedjoin_np
+#define _GNU_SOURCE // for pthread_timedjoin_np
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -31,10 +31,13 @@
 
 
 // Sending Initialization
-int rc_mav_init_sender(uint16_t port, const char* dest_ip, uint8_t system_id);
-int rc_mav_set_dest_ip(const char* dest_ip);
+int rc_mav_init(uint8_t system_id, const char* dest_ip, uint16_t port);
+void * rc_mav_listen();
+int rc_mav_recv_msg();
+int rc_mav_address_init(struct sockaddr_in * address, const char* dest_ip, int port);
 int rc_mav_set_system_id(uint8_t system_id);
-int rc_mav_cleanup_sender();
+int rc_mav_cleanup_listener();
+int rc_mav_cleanup();
 
 
 
