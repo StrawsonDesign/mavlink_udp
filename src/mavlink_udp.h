@@ -2,12 +2,28 @@
 * mavlink_udp.h
 *******************************************************************************/
 
+#define _GNU_SOURCE // for pthread_timedjoin_np
+#include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <pthread.h>
+#include <errno.h>
+#include <sys/time.h>
+#include <arpa/inet.h>	// Sockets & networking
+#include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
+//#include <perror.h>
 
 #ifndef RC_MAVLINK_UDP
 #define RC_MAVLINK_UDP
 
 #include <stdint.h>		// for specific integer types
-#include "mavlink/mavlink.h"	// open-source mavlink definitions
+#include "../include/mavlink/common/mavlink.h" // MAVLINK
+#include "../include/mavlink/mavlink_types.h" // MAVLINK
 
 // default port for UDP communications
 #define RC_MAV_GROUND_CONTROL_PORT	14550
@@ -15,10 +31,13 @@
 
 
 // Sending Initialization
-int rc_mav_init_sender(uint16_t port, const char* dest_ip, uint8_t system_id);
-int rc_mav_set_dest_ip(const char* dest_ip);
+int rc_mav_init(uint8_t system_id, const char* dest_ip, uint16_t port);
+void * rc_mav_listen();
+int rc_mav_recv_msg();
+int rc_mav_address_init(struct sockaddr_in * address, const char* dest_ip, int port);
 int rc_mav_set_system_id(uint8_t system_id);
-int rc_mav_cleanup_sender();
+int rc_mav_cleanup_listener();
+int rc_mav_cleanup();
 
 
 
@@ -192,7 +211,7 @@ int rc_mav_get_msg(int msg_id, mavlink_message_t* msg);
 int64_t rc_mav_ns_since_last_msg(int msg_id);
 int rc_mav_print_msg_name(int msg_id);
 int rc_mav_id_of_last_msg();
-
+/*
 // extra helper functions for common packets so the user doesn't have to decode messages
 int rc_mav_get_heartbeat_full(__mavlink_heartbeat_t* data);
 int rc_mav_get_attitude(___mavlink_attitude_t* data);
@@ -210,6 +229,6 @@ int rc_mav_get_raw_pressure(___mavlink___raw_pressure_t* data);
 int rc_mav_get_servo_output_raw(__mavlink__servo_output_raw_t* data);
 int rc_mav_get_sys_status(__mavlink_sys_status_t);
 int rc_mav_get_att_pos_mocap(__mavlink_att_pos_mocap_t);
-
+*/
 #endif /* RC_MAVLINK_UDP */
 
