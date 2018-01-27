@@ -1,4 +1,4 @@
-#include "mavlink_udp.h"
+#include <rc/mavlink_udp.h>
 
 int main(int argc, char * argv[])
 {

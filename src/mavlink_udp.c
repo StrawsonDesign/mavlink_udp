@@ -1,54 +1,68 @@
 /*******************************************************************************
 * mavlink_udp.c
 *******************************************************************************/
-#include "mavlink_udp.h"
+#include <rc/mavlink_udp.h>
 
-#define BUFFER_LENGTH			512 // common networking buffer size
+#define BUFFER_LENGTH		512 // common networking buffer size
 #define MAX_UNIQUE_MSG_TYPES	256
-#define LISTEN_SOCKET_TIMEOUT	1
+#define HEARTBEAT_TIMEOUT	3
 #define MAX_PENDING_CONNECTIONS	32
+#define LOCALHOST_IP "127.0.0.1"
 
-// function declarations
 
-// sending stuff
+// connection stuff
 static int init_flag=0;
 static int sock_fd;
-static const char * local_addr = "127.0.0.1";
-static const int local_port = 40000;
-static const int dest_port = 40000;
+static int current_port;
 static struct sockaddr_in my_address ;
-static struct sockaddr_in other_address;
+static struct sockaddr_in dest_address;
 static uint8_t system_id;
 
+// callbacks
 static void (*callbacks[MAX_UNIQUE_MSG_TYPES])(void);
 static void (*callback_all)(void); // called when any packet arrives
-static int received_flag[MAX_UNIQUE_MSG_TYPES];
+static void (*connection_lost_callback)(void);
 
+// flags and info populated by the listening thread
+static int received_flag[MAX_UNIQUE_MSG_TYPES];
 static uint64_t ns_of_last_msg[MAX_UNIQUE_MSG_TYPES];
+static uint64_t ns_of_last_msg_any;
 static mavlink_message_t messages[MAX_UNIQUE_MSG_TYPES];
+
+// thread startup and shutdown flags
 static pthread_t listener_thread;
 static int shutdown_flag=0;
 static int listening_flag=0;
 static int listening_init_flag=0;
 
+
+// private local functions
+static void* __rc_mav_listen();
+static int __rc_mav_recv_msg();
+static void __rc_null_func();
+static uint64_t __rc_nanos_since_epoch();
+static int __address_init(struct sockaddr_in * address, const char* dest_ip, int port);
+
+
+
 /*******************************************************************************
-* void rc_null_func()
+* void __rc_null_func()
 *
 * A simple function that just returns. This exists so callback pointers can be
 * set to do nothing
 *******************************************************************************/
-static void rc_null_func(){
+static void __rc_null_func(){
 	return;
 }
 
 /*******************************************************************************
-* @ uint64_t rc_nanos_since_epoch()
+* @ uint64_t __rc_nanos_since_epoch()
 *
 * Returns the number of nanoseconds since epoch using system CLOCK_REALTIME
 * This function itself takes about 1100ns to complete at 1ghz under ideal
 * circumstances.
 *******************************************************************************/
-static uint64_t rc_nanos_since_epoch(){
+static uint64_t __rc_nanos_since_epoch(){
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
 	return ((uint64_t)ts.tv_sec*1000000000)+ts.tv_nsec;
@@ -60,12 +74,13 @@ int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port){
 		fprintf(stderr, "WARNING, trying to init mavlink connection when it's already initialized!\n");
 		return -1;
 	}
-	
+
 	if(dest_ip==NULL){
 		fprintf(stderr, "ERROR: in rc_mav_init received NULL dest_ip string\n");
 		return -1;
 	}
 
+	current_port = port;
 	// open socket for UDP packets
 	if((sock_fd=socket(AF_INET, SOCK_DGRAM, 0)) < 0){
 		perror("ERROR: in rc_mav_init: ");
@@ -73,7 +88,7 @@ int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port){
 	}
 
 	// fill out rest of sockaddr_in struct
-	if (rc_mav_address_init(&my_address, 0, local_port) != 0){
+	if (__address_init(&my_address, 0, current_port) != 0){
 		fprintf(stderr, "ERROR: in rc_mav_init: couldn't set local address\n");
 		return -1;
 	}
@@ -85,7 +100,7 @@ int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port){
 	}
 
 	// set destination address
-	if(rc_mav_address_init(&other_address, dest_ip, dest_port) != 0){
+	if(__address_init(&dest_address, dest_ip, current_port) != 0){
 		fprintf(stderr, "ERROR: in rc_mav_init: couldn't set destination address");
 		return -1;
 	}
@@ -95,7 +110,7 @@ int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port){
 	system_id=sysid;
 
 	// spawn listener thread
-	if (pthread_create(&listener_thread, NULL, rc_mav_listen, NULL) < 0){
+	if (pthread_create(&listener_thread, NULL, __rc_mav_listen, NULL) < 0){
 		perror("ERROR: in rc_mav_init: ");
 		return -1;
 	}
@@ -103,18 +118,20 @@ int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port){
 	return 0;
 }
 
-void * rc_mav_listen(){
+// background thread for handling packets
+void* __rc_mav_listen(){
 	fprintf(stderr, "listening...\n");
 	listening_flag=1;
 	while (shutdown_flag==0){
-		rc_mav_recv_msg();
+		__rc_mav_recv_msg();
 	}
 	printf("exiting rc_mav_listen\n");
-	rc_mav_cleanup_listener();
 	return 0;
 }
 
-int rc_mav_recv_msg(){
+// pulls one msg from the network buffer
+int __rc_mav_recv_msg(){
+	int i;
 	ssize_t num_bytes_rcvd;;
 	uint8_t buf[BUFFER_LENGTH];
 	socklen_t addr_len = sizeof my_address;
@@ -136,7 +153,7 @@ int rc_mav_recv_msg(){
 		printf("\n");
 	}
 	//#endif
-/*
+
 	// do mavlink's silly byte-wise parsing method
 	for (i = 0; i<num_bytes_rcvd; ++i){
 		// parse on channel 0(MAVLINK_COMM_0)
@@ -144,16 +161,18 @@ int rc_mav_recv_msg(){
 			#ifdef DEBUG
 			printf("\nReceived packet: SYS: %d, COMP: %d, LEN: %d, MSG ID: %d\n", msg.sysid, msg.compid, msg.len, msg.msgid);
 			#endif
-			ns_of_last_msg[msg.msgid]=rc_nanos_since_epoch();
-
+			ns_of_last_msg[msg.msgid]=__rc_nanos_since_epoch();
+			ns_of_last_msg_any = ns_of_last_msg[msg.msgid];
+/*
 			received_flag[msg.msgid]=1;
 			messages[msg.msgid]=msg;
 			// run the generic callback
 			callback_all();
-			void callbacks(void*)[MAX_UNIQUE_MSG_TYPES];
+			callbacks[msg.msgid]();
+*/
 		}
 	}
-*/
+
 	return 0;
 }
 
@@ -170,22 +189,10 @@ int rc_mav_send_msg(mavlink_message_t msg){
 		fprintf(stderr, "ERROR: in rc_mav_send_msg, unable to pack message for sending\n");
 		return -1;
 	}
-	int bytes_sent = sendto(sock_fd, buf, msg_len, 0, (struct sockaddr *) &other_address,
-							sizeof other_address);
+	int bytes_sent = sendto(sock_fd, buf, msg_len, 0, (struct sockaddr *) &dest_address,
+							sizeof dest_address);
 	if(bytes_sent != msg_len){
 		perror("ERROR: in rc_mav_send_msg: ");
-		return -1;
-	}
-	return 0;
-}
-
-int rc_mav_send_heartbeat(uint32_t custom_mode,uint8_t type,uint8_t autopilot,
-							uint8_t base_mode, uint8_t system_status){
-	// sanity check
-	mavlink_message_t msg;
-	mavlink_msg_heartbeat_pack(system_id, MAV_COMP_ID_ALL, &msg, type, autopilot, base_mode, custom_mode, system_status);
-	if(rc_mav_send_msg(msg)){
-		fprintf(stderr, "ERROR: in rc_mav_send_heartbeat, failed to send\n");
 		return -1;
 	}
 	return 0;
@@ -202,37 +209,30 @@ int rc_mav_send_heartbeat_abbreviated(){
 	return 0;
 }
 
-int rc_mav_cleanup_listener(){
-	printf("%d\n",7);
-	if(init_flag==0 || listening_flag==0){
-		fprintf(stderr, "WARNING, trying to cleanup mavlink listener when it's not running\n");
+
+int rc_mav_send_heartbeat(uint32_t custom_mode,uint8_t type,uint8_t autopilot,
+							uint8_t base_mode, uint8_t system_status){
+	// sanity check
+	mavlink_message_t msg;
+	mavlink_msg_heartbeat_pack(system_id, MAV_COMP_ID_ALL, &msg, type, autopilot, base_mode, custom_mode, system_status);
+	if(rc_mav_send_msg(msg)){
+		fprintf(stderr, "ERROR: in rc_mav_send_heartbeat, failed to send\n");
 		return -1;
 	}
-	listening_flag=0;
-/*
-	// wait for thread to join
-	struct timespec thread_timeout;
-	clock_gettime(CLOCK_REALTIME, &thread_timeout);
-	thread_timeout.tv_sec += 2;
-	int thread_err = 0;
-	thread_err = pthread_timedjoin_np(listener_thread, NULL, &thread_timeout);
-	if(thread_err == ETIMEDOUT){
-		printf("WARNING: in rc_mav_cleanup_listener, exit timeout\n");
-		return -1;
-	}
-*/
-	if(pthread_join(listener_thread,NULL)){
-		perror("ERROR: in rc_mav_cleanup_listener: ");
-		return -1;
-	}
-	init_flag=0;
 	return 0;
 }
 
-int rc_mav_address_init(struct sockaddr_in * address, const char* dest_ip, int port){
+
+int rc_mav_set_dest_ip(const char* dest_ip){
+
+	return __address_init(&dest_address,dest_ip,current_port);
+
+}
+
+int __address_init(struct sockaddr_in * address, const char* dest_ip, int port){
 	// sanity check
 	if(address == NULL || port < 1){
-		fprintf(stderr, "ERROR: in rc_mav_address_init: received NULL address struct\n");
+		fprintf(stderr, "ERROR: in __address_init: received NULL address struct\n");
 		return -1;
 	}
 	memset((char*) address, 0, sizeof address);
@@ -247,14 +247,28 @@ int rc_mav_set_system_id(uint8_t sys_id){
 	return 0;
 }
 
-int rc_mav_cleanup_socket(){
+
+int rc_mav_cleanup(){
+	if(init_flag==0 || listening_flag==0){
+		fprintf(stderr, "WARNING, trying to cleanup mavlink listener when it's not running\n");
+		return -1;
+	}
+	shutdown_flag=1;
+	listening_flag=0;
+
+	// wait for thread to join
+	struct timespec thread_timeout;
+	clock_gettime(CLOCK_REALTIME, &thread_timeout);
+	thread_timeout.tv_sec += 2;
+	int thread_err = 0;
+	thread_err = pthread_timedjoin_np(listener_thread, NULL, &thread_timeout);
+	if(thread_err == ETIMEDOUT){
+		printf("WARNING: in rc_mav_cleanup_listener, exit timeout\n");
+		return -1;
+	}
 	close(sock_fd);
 	init_flag=0;
 	return 0;
-}
-
-int rc_mav_cleanup(){
-	shutdown_flag=1;
 }
 
 /*
@@ -304,7 +318,7 @@ void* listening_func(__unused void* ptr){
 				#ifdef DEBUG
 				printf("\nReceived packet: SYS: %d, COMP: %d, LEN: %d, MSG ID: %d\n", msg.sysid, msg.compid, msg.len, msg.msgid);
 				#endif
-				ns_of_last_msg[msg.msgid]=rc_nanos_since_epoch();
+				ns_of_last_msg[msg.msgid]=__rc_nanos_since_epoch();
 
 				received_flag[msg.msgid]=1;
 				messages[msg.msgid]=msg;

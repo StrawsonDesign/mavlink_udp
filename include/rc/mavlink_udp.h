@@ -2,42 +2,61 @@
 * mavlink_udp.h
 *******************************************************************************/
 
-#define _GNU_SOURCE // for pthread_timedjoin_np
+#ifndef RC_MAVLINK_UDP
+#define RC_MAVLINK_UDP
+
+#define _GNU_SOURCE	// for pthread_timedjoin_np
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>	// for specific integer types
 #include <signal.h>
 #include <pthread.h>
 #include <errno.h>
 #include <sys/time.h>
 #include <arpa/inet.h>	// Sockets & networking
-#include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string.h>
-#include <fcntl.h>
-//#include <perror.h>
 
-#ifndef RC_MAVLINK_UDP
-#define RC_MAVLINK_UDP
 
-#include <stdint.h>		// for specific integer types
-#include "../include/mavlink/common/mavlink.h" // MAVLINK
-#include "../include/mavlink/mavlink_types.h" // MAVLINK
+#include <rc/mavlink/common/mavlink.h> // MAVLINK
+#include <rc/mavlink/mavlink_types.h> // MAVLINK
 
 // default port for UDP communications
-#define RC_MAV_GROUND_CONTROL_PORT	14550
-#define RC_MAV_UAV_PORT			14551
+#define RC_MAV_DEFAULT_UDP_PORT		14551
 
 
-// Sending Initialization
+
+/**
+ * @brief Initialize a UDP port for sending and receiving
+ *
+ * Initialize a UDP port for sending and receiving. Additionally starts a listening
+ * thread that handles incomming packets and makes them available with the remaining
+ * functions in this API.
+ *
+ * @param[in]  system_id    The system id of this device tagged in outgoing packets
+ * @param[in]  dest_ip      The destination ip, can be changed later with rc_mav_set_dest_ip
+ * @param[in]  port         Port to listen on and send to
+ *
+ * @return     0 on success, -1 on failure
+ */
 int rc_mav_init(uint8_t system_id, const char* dest_ip, uint16_t port);
-void * rc_mav_listen();
-int rc_mav_recv_msg();
-int rc_mav_address_init(struct sockaddr_in * address, const char* dest_ip, int port);
+
+
+int rc_mav_set_dest_ip(const char* dest_ip);
+
+/**
+ * @brief      { function_description }
+ *
+ * @param[in]  system_id  The system identifier
+ *
+ * @return     { description_of_the_return_value }
+ */
 int rc_mav_set_system_id(uint8_t system_id);
-int rc_mav_cleanup_listener();
+
 int rc_mav_cleanup();
+
 
 
 
@@ -55,6 +74,8 @@ int rc_mav_send_heartbeat(
 	uint8_t base_mode,	// System mode bitfield, see MAV_MODE_FLAGS ENUM in mavlink/include/mavlink_types.h
 	uint8_t system_status);	// System status flag, see MAV_STATE ENUM
 
+
+// attitude telemetry packets
 int rc_mav_send_attitude(
 	float roll,		// Roll angle (rad, -pi..+pi)
 	float pitch,		// Pitch angle (rad, -pi..+pi)
@@ -72,6 +93,8 @@ int rc_mav_send_attitude_quaternion(
 	float pitchspeed,	// Pitch angular speed (rad/s)
 	float yawspeed);	// Yaw angular speed (rad/s)
 
+
+// position telemetry packets
 int rc_mav_send_local_position_ned(
 	float x,		// X Position
 	float y,		// Y Position
@@ -79,13 +102,6 @@ int rc_mav_send_local_position_ned(
 	float vx,		// X Speed
 	float vy,		// Y Speed
 	float vz);		// Z Speed
-
-int rc_mav_send_local_position_setpoint(
-	float x,		// x position
-	float y,		// y position
-	float z,		// z position
-	float yaw,		// Desired yaw angle
-	uint8_t coordinate_frame);// Coordinate frame - valid values are only MAV_FRAME_LOCAL_NED or MAV_FRAME_LOCAL_ENU
 
 int rc_mav_send_global_position_int(
 	int32_t lat,		// Latitude, expressed as * 1E7
@@ -97,35 +113,42 @@ int rc_mav_send_global_position_int(
 	int16_t vz,		// Ground Z Speed (Altitude), expressed as m/s * 100
 	uint16_t hdg);		// Compass heading in degrees * 100, 0.0..359.99 degrees. If unknown, set to: UINT16_MAX
 
-int rc_mav_send_global_position_setpoint_int(
-	int32_t latitude,		// Latitude (WGS84), in degrees * 1E7
-	int32_t longitude,		// Longitude (WGS84), in degrees * 1E7
-	int32_t altitude,		// Altitude (WGS84), in meters * 1000 (positive for up)
-	int16_t yaw,			// Desired yaw angle in degrees * 100
-	uint8_t coordinate_frame);	// Coordinate frame - valid values are only MAV_FRAME_GLOBAL or MAV_FRAME_GLOBAL_RELATIVE_ALT
+// setpoint packets
+int rc_mav_send_set_position_target_local_ned(
+	float x, /*< X Position in NED	frame in meters*/
+	float y, /*< Y Position in NED	frame in meters*/
+	float z, /*< Z Position in NED	frame in meters (note, altitude is negative in NED)*/
+	float vx, /*< X velocity in NED	frame in meter / s*/
+	float vy, /*< Y velocity in NED	frame in meter / s*/
+	float vz, /*< Z velocity in NED	frame in meter / s*/
+	float afx, /*< X acceleration or	force (if bit 10 of type_mask is set) in NED	frame in meter / s^2 or N*/
+	float afy, /*< Y acceleration or	force (if bit 10 of type_mask is set) in NED	frame in meter / s^2 or N*/
+	float afz, /*< Z acceleration or	force (if bit 10 of type_mask is set) in NED	frame in meter / s^2 or N*/
+	float yaw, /*< yaw setpoint in rad*/
+	float yaw_rate, /*< yaw rate setpoint in rad/s*/
+	uint16_t type_mask, /*< Bitmask to indicate which dimensions should be ignored by the vehicle: a value of 0b0000000000000000 or 0b0000001000000000 indicates that none of the setpoint dimensions should be ignored. If bit 10 is set the	floats afx afy afz should be interpreted as	force instead of acceleration. Mapping: bit 1: x, bit 2: y, bit 3: z, bit 4: vx, bit 5: vy, bit 6: vz, bit 7: ax, bit 8: ay, bit 9: az, bit 10: is	force setpoint, bit 11: yaw, bit 12: yaw rate*/
+	uint8_t target_system, /*< System ID*/
+	uint8_t target_component, /*< Component ID*/
+	uint8_t coordinate_frame); /*< Valid options are: MAV_FRAME_LOCAL_NED = 1, MAV_FRAME_LOCAL_OFFSET_NED = 7, MAV_FRAME_BODY_NED = 8, MAV_FRAME_BODY_OFFSET_NED = 9*/
 
-int rc_mav_send_global_vision_position_estimate(
-	uint64_t usec,		// Timestamp (microseconds, synced to UNIX time or since system boot)
-	float x,		// Global X position
-	float y,		// Global Y position
-	float z,		// Global Z position
-	float roll,		// Roll angle in rad
-	float pitch,		// Pitch angle in rad
-	float yaw);		// Yaw angle in rad
 
-int rc_mav_send_battery(
-	int32_t current_consumed,	// Consumed charge, in milliampere hours (1 = 1 mAh), -1: autopilot does not provide mAh consumption estimate
-	int32_t energy_consumed,	// Consumed energy, in 100*Joules (intergrated U*I*dt)  (1 = 100 Joule), -1: autopilot does not provide energy consumption estimate
-	uint16_t voltage_cell_1,	// Battery voltage of cell 1, in millivolts (1 = 1 millivolt)
-	uint16_t voltage_cell_2,	// Battery voltage of cell 2, in millivolts (1 = 1 millivolt), -1: no cell
-	uint16_t voltage_cell_3,	// Battery voltage of cell 3, in millivolts (1 = 1 millivolt), -1: no cell
-	uint16_t voltage_cell_4,	// Battery voltage of cell 4, in millivolts (1 = 1 millivolt), -1: no cell
-	uint16_t voltage_cell_5,	// Battery voltage of cell 5, in millivolts (1 = 1 millivolt), -1: no cell
-	uint16_t voltage_cell_6,	// Battery voltage of cell 6, in millivolts (1 = 1 millivolt), -1: no cell
-	int16_t current_battery,	// Battery current, in 10*milliamperes (1 = 10 milliampere), -1: autopilot does not measure the current
-	uint8_t accu_id,		// Accupack ID
-	int8_t battery_remaining);	// Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot does not estimate the remaining battery
+int rc_mav_send_set_position_target_global_int(
+	int32_t lat_int, /*< X Position in WGS84	frame in 1e7 * degrees*/
+	int32_t lon_int, /*< Y Position in WGS84	frame in 1e7 * degrees*/
+	float alt, /*< Altitude in meters in AMSL altitude, not WGS84 if absolute or relative, above terrain if GLOBAL_TERRAIN_ALT_INT*/
+	float vx, /*< X velocity in NED	frame in meter / s*/
+	float vy, /*< Y velocity in NED	frame in meter / s*/
+	float vz, /*< Z velocity in NED	frame in meter / s*/
+	float afx, /*< X acceleration or	force (if bit 10 of type_mask is set) in NED	frame in meter / s^2 or N*/
+	float afy, /*< Y acceleration or	force (if bit 10 of type_mask is set) in NED	frame in meter / s^2 or N*/
+	float afz, /*< Z acceleration or	force (if bit 10 of type_mask is set) in NED	frame in meter / s^2 or N*/
+	float yaw, /*< yaw setpoint in rad*/
+	float yaw_rate, /*< yaw rate setpoint in rad/s*/
+	uint16_t type_mask, /*< Bitmask to indicate which dimensions should be ignored by the vehicle: a value of 0b0000000000000000 or 0b0000001000000000 indicates that none of the setpoint dimensions should be ignored. If bit 10 is set the	floats afx afy afz should be interpreted as	force instead of acceleration. Mapping: bit 1: x, bit 2: y, bit 3: z, bit 4: vx, bit 5: vy, bit 6: vz, bit 7: ax, bit 8: ay, bit 9: az, bit 10: is	force setpoint, bit 11: yaw, bit 12: yaw rate*/
+	uint8_t coordinate_frame); /*< Valid options are: MAV_FRAME_GLOBAL_INT = 5, MAV_FRAME_GLOBAL_RELATIVE_ALT_INT = 6, MAV_FRAME_GLOBAL_TERRAIN_ALT_INT = 11*/
 
+
+// other telemetry (MAV to Ground)
 int rc_mav_send_gps_raw_int(
 	int32_t lat,			// Latitude (WGS84), in degrees * 1E7
 	int32_t lon,			// Longitude (WGS84), in degrees * 1E7
@@ -136,26 +159,6 @@ int rc_mav_send_gps_raw_int(
 	uint16_t cog,			// Course over ground (NOT heading, but direction of movement) in degrees * 100, 0.0..359.99 degrees. If unknown, set to: UINT16_MAX
 	uint8_t fix_type,		// 0-1: no fix, 2: 2D fix, 3: 3D fix. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.
 	uint8_t satellites_visible);	// Number of satellites visible. If unknown, set to 255
-
-int rc_mav_send_manual_control(
-	int16_t x,		// X-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to forward(1000)-backward(-1000) movement on a joystick and the pitch of a vehicle.
-	int16_t y,		// Y-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to left(-1000)-right(1000) movement on a joystick and the roll of a vehicle.
-	int16_t z,		// Z-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to a separate slider movement with maximum being 1000 and minimum being -1000 on a joystick and the thrust of a vehicle.
-	int16_t r,		// R-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to a twisting of the joystick, with counter-clockwise being 1000 and clockwise being -1000, and the yaw of a vehicle.
-	uint16_t buttons,	// A bitfield corresponding to the joystick buttons' current state, 1 for pressed, 0 for released. The lowest bit corresponds to Button 1.
-	uint8_t target);	// The system to be controlled.
-
-int rc_mav_send_rc_channels_scaled(
-	int16_t chan1_scaled,	// RC channel 1 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
-	int16_t chan2_scaled,	// RC channel 2 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
-	int16_t chan3_scaled,	// RC channel 3 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
-	int16_t chan4_scaled,	// RC channel 4 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
-	int16_t chan5_scaled,	// RC channel 5 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
-	int16_t chan6_scaled,	// RC channel 6 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
-	int16_t chan7_scaled,	// RC channel 7 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
-	int16_t chan8_scaled,	// RC channel 8 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
-	uint8_t port,		// Servo output port (set of 8 outputs = 1 port). Most MAVs will just use one, but this allows for more than 8 servos.
-	uint8_t rssi);		// Receive signal strength indicator, 0: 0%, 100: 100%, 255: invalid/unknown.
 
 int rc_mav_send_raw_pressure(
 	int16_t press_abs,	// Absolute pressure (raw)
@@ -189,6 +192,17 @@ int rc_mav_send_sys_status(
 	uint16_t errors_count4,			// Autopilot-specific errors
 	int8_t battery_remaining);		// Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot estimate the remaining battery
 
+
+// other control (Ground to MAV)
+int rc_mav_send_manual_control(
+	int16_t x,		// X-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to forward(1000)-backward(-1000) movement on a joystick and the pitch of a vehicle.
+	int16_t y,		// Y-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to left(-1000)-right(1000) movement on a joystick and the roll of a vehicle.
+	int16_t z,		// Z-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to a separate slider movement with maximum being 1000 and minimum being -1000 on a joystick and the thrust of a vehicle.
+	int16_t r,		// R-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to a twisting of the joystick, with counter-clockwise being 1000 and clockwise being -1000, and the yaw of a vehicle.
+	uint16_t buttons,	// A bitfield corresponding to the joystick buttons' current state, 1 for pressed, 0 for released. The lowest bit corresponds to Button 1.
+	uint8_t target);	// The system to be controlled.
+
+
 int rc_mav_att_pos_mocap(
 	float q[4],	// Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
 	float x,	// X position in meters (NED)
@@ -198,37 +212,49 @@ int rc_mav_att_pos_mocap(
 
 
 // receiving initialization
-int rc_mav_init_listener(uint16_t port);
-int rc_mav_cleanup_listener();
+
 
 // assign a callback function to be called when a message is received.
 int rc_mav_set_callback(int msg_id, void (*func)(void));
 int rc_mav_set_callback_all(void (*func)(void));
+int rc_mav_set_connection_lost_callback(uint64_t timeout_ns);
+int rc_mav_get_connection_state();
 
 // returns the last received packet of type message
 int rc_mav_is_new_msg(int msg_id);
 int rc_mav_get_msg(int msg_id, mavlink_message_t* msg);
 int64_t rc_mav_ns_since_last_msg(int msg_id);
+int64_t rc_mav_ns_since_last_msg_any(int msg_id);
 int rc_mav_print_msg_name(int msg_id);
 int rc_mav_id_of_last_msg();
-/*
+
+
+
+
 // extra helper functions for common packets so the user doesn't have to decode messages
-int rc_mav_get_heartbeat_full(__mavlink_heartbeat_t* data);
-int rc_mav_get_attitude(___mavlink_attitude_t* data);
-int rc_mav_get_attitude_quaternion(___mavlink_attitude_quaternion_t* data);
-int rc_mav_get_local_position_setpoint(___mavlink__local_position_setpoint_t* data);
-int rc_mav_get_global_position_int(___mavlink__global_position_int_t* data);
-int rc_mav_get_global_position_setpoint_int(___mavlink__global_position_setpoint_int_t* data);
-int rc_mav_get_global_vision_position_estimate(___mavlink__global_vision_position_estimate_t* data);
-int rc_mav_get_battery(___mavlink__battery_t* data);
-int rc_mav_get_gps_raw_int(___mavlink__gps_raw_int_t* data);
-int rc_mav_get_manual_control(___mavlink__manual_control_t* data);
-int rc_mav_get_local_position_ned(___mavlink__local_position_ned_t* data);
-int rc_mav_get_rc_channels_scaled(___mavlink__rc_channels_scaled_t* data);
-int rc_mav_get_raw_pressure(___mavlink___raw_pressure_t* data);
-int rc_mav_get_servo_output_raw(__mavlink__servo_output_raw_t* data);
-int rc_mav_get_sys_status(__mavlink_sys_status_t);
-int rc_mav_get_att_pos_mocap(__mavlink_att_pos_mocap_t);
-*/
+int rc_mav_get_heartbeat(mavlink_heartbeat_t* data);
+
+// attitude telemetry packets
+int rc_mav_get_attitude(mavlink_attitude_t* data);
+int rc_mav_get_attitude_quaternion(mavlink_attitude_quaternion_t* data);
+
+// position telemetry packets
+int rc_mav_get_local_position_ned(mavlink_local_position_ned_t* data);
+int rc_mav_get_global_position_int(mavlink_global_position_int_t* data);
+
+// setpoint packets
+int rc_mav_get_set_position_target_local_ned(mavlink_set_position_target_local_ned_t* data);
+int rc_mav_get_set_position_target_global_int(mavlink_set_position_target_global_int_t* data);
+
+// other telemetry
+int rc_mav_get_gps_raw_int(mavlink_gps_raw_int_t* data);
+int rc_mav_get_raw_pressure(mavlink_raw_pressure_t* data);
+int rc_mav_get_servo_output_raw(mavlink_servo_output_raw_t* data);
+int rc_mav_get_sys_status(mavlink_sys_status_t* data);
+
+// other control (Ground to MAV)
+int rc_mav_get_manual_control(mavlink_manual_control_t* data);
+int rc_mav_get_att_pos_mocap(mavlink_att_pos_mocap_t* data);
+
 #endif /* RC_MAVLINK_UDP */
 
