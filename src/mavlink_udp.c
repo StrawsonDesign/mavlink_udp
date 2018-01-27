@@ -1,6 +1,20 @@
 /*******************************************************************************
 * mavlink_udp.c
 *******************************************************************************/
+#define _GNU_SOURCE	// for pthread_timedjoin_np
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>	// for specific integer types
+#include <signal.h>
+#include <pthread.h>
+#include <errno.h>
+#include <sys/time.h>
+#include <arpa/inet.h>	// Sockets & networking
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <string.h>
+
 #include <rc/mavlink_udp.h>
 
 #define BUFFER_LENGTH		512 // common networking buffer size
@@ -190,7 +204,7 @@ int rc_mav_send_msg(mavlink_message_t msg){
 	int bytes_sent = sendto(sock_fd, buf, msg_len, 0, (struct sockaddr *) &dest_address,
 							sizeof dest_address);
 	if(bytes_sent != msg_len){
-		perror("ERROR: in rc_mav_send_msg: ");
+		perror("ERROR: in rc_mav_send_msg: failed to write to UDP socket\n");
 		return -1;
 	}
 	return 0;
@@ -247,6 +261,7 @@ int rc_mav_set_system_id(uint8_t sys_id){
 
 
 int rc_mav_cleanup(){
+	int ret = 0;
 	if(init_flag==0 || listening_flag==0){
 		fprintf(stderr, "WARNING, trying to cleanup mavlink listener when it's not running\n");
 		return -1;
@@ -261,12 +276,12 @@ int rc_mav_cleanup(){
 	int thread_err = 0;
 	thread_err = pthread_timedjoin_np(listener_thread, NULL, &thread_timeout);
 	if(thread_err == ETIMEDOUT){
-		printf("WARNING: in rc_mav_cleanup_listener, exit timeout\n");
-		return -1;
+		fprintf(stderr,"WARNING: in rc_mav_cleanup_listener, network thread exit timeout\n");
+		ret = -1;
 	}
 	close(sock_fd);
 	init_flag=0;
-	return 0;
+	return ret;
 }
 
 
