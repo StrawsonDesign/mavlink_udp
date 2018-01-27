@@ -22,7 +22,7 @@
 // these are directly from the mavlink source
 #include <rc/mavlink/common/mavlink.h>
 #include <rc/mavlink/mavlink_types.h>
-#include <rc/mavlink/mavlink_udp_helpers.h>
+#include <rc/mavlink_udp_helpers.h>
 
 
 #define RC_MAV_DEFAULT_UDP_PORT	14551
