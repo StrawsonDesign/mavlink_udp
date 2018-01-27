@@ -24,7 +24,7 @@
 #include <rc/mavlink/mavlink_types.h> // MAVLINK
 
 // default port for UDP communications
-#define RC_MAV_DEFAULT_UDP_PORT		14551
+#define RC_MAV_DEFAULT_UDP_PORT	14551
 
 
 
@@ -217,12 +217,13 @@ int rc_mav_att_pos_mocap(
 // assign a callback function to be called when a message is received.
 int rc_mav_set_callback(int msg_id, void (*func)(void));
 int rc_mav_set_callback_all(void (*func)(void));
-int rc_mav_set_connection_lost_callback(uint64_t timeout_ns);
+int rc_mav_set_connection_lost_callback(void (*func)(void));
 int rc_mav_get_connection_state();
 
 // returns the last received packet of type message
 int rc_mav_is_new_msg(int msg_id);
 int rc_mav_get_msg(int msg_id, mavlink_message_t* msg);
+int rc_mav_get_sys_id_of_last_msg(int msg_id);
 int64_t rc_mav_ns_since_last_msg(int msg_id);
 int64_t rc_mav_ns_since_last_msg_any(int msg_id);
 int rc_mav_print_msg_name(int msg_id);

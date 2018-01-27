@@ -39,19 +39,19 @@ static int listening_init_flag=0;
 // private local functions
 static void* __rc_mav_listen();
 static int __rc_mav_recv_msg();
-static void __rc_null_func();
+static void __null_func();
 static uint64_t __rc_nanos_since_epoch();
 static int __address_init(struct sockaddr_in * address, const char* dest_ip, int port);
 
 
 
 /*******************************************************************************
-* void __rc_null_func()
+* void __null_func()
 *
 * A simple function that just returns. This exists so callback pointers can be
 * set to do nothing
 *******************************************************************************/
-static void __rc_null_func(){
+static void __null_func(){
 	return;
 }
 
@@ -69,6 +69,8 @@ static uint64_t __rc_nanos_since_epoch(){
 }
 
 int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port){
+	int i;
+
 	// sanity checks
 	if(init_flag!=0){
 		fprintf(stderr, "WARNING, trying to init mavlink connection when it's already initialized!\n");
@@ -80,7 +82,14 @@ int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port){
 		return -1;
 	}
 
+	// save port globally for other functions to use
 	current_port = port;
+
+	// set all the callback pointers to something sane
+	callback_all = __null_func;
+	connection_lost_callback = __null_func;
+	for(i=0;i<MAX_UNIQUE_MSG_TYPES;i++) callbacks[i] = __null_func;
+
 	// open socket for UDP packets
 	if((sock_fd=socket(AF_INET, SOCK_DGRAM, 0)) < 0){
 		perror("ERROR: in rc_mav_init: ");
@@ -140,36 +149,25 @@ int __rc_mav_recv_msg(){
 
 	memset(buf, 0, BUFFER_LENGTH);
 	num_bytes_rcvd = recvfrom(sock_fd, buf, BUFFER_LENGTH, 0, (struct sockaddr *) &my_address, &addr_len);
-	// Something received - print out all bytes and parse packet
-	//#ifdef DEBUG
-	if(num_bytes_rcvd < 0){
-		perror("ERROR: in rc_mav_recv_mesg: ");
-		fprintf(stderr,"ERROR: in rc_mav_recv_mesg: recv failed");
-	}
-	else{
-		printf("Bytes Received: %d\n", (int)num_bytes_rcvd);
-		int i;
-		for(i=0;i<num_bytes_rcvd;i++) printf("%d ",buf[i]);
-		printf("\n");
-	}
-	//#endif
 
 	// do mavlink's silly byte-wise parsing method
 	for (i = 0; i<num_bytes_rcvd; ++i){
 		// parse on channel 0(MAVLINK_COMM_0)
 		if (mavlink_parse_char(MAVLINK_COMM_0, buf[i], &msg, &parse_status)){
 			#ifdef DEBUG
-			printf("\nReceived packet: SYS: %d, COMP: %d, LEN: %d, MSG ID: %d\n", msg.sysid, msg.compid, msg.len, msg.msgid);
+			printf("\nReceived packet: SYSID: %d, MSG ID: %d\n", msg.sysid, msg.msgid);
 			#endif
+			// update timestamps and received flag
 			ns_of_last_msg[msg.msgid]=__rc_nanos_since_epoch();
 			ns_of_last_msg_any = ns_of_last_msg[msg.msgid];
-/*
 			received_flag[msg.msgid]=1;
+			// save local copy of message
 			messages[msg.msgid]=msg;
 			// run the generic callback
 			callback_all();
+			// run the msg-specific callback
 			callbacks[msg.msgid]();
-*/
+
 		}
 	}
 
@@ -271,23 +269,8 @@ int rc_mav_cleanup(){
 	return 0;
 }
 
+
 /*
-int rc_mav_init_callbacks()
-{
-	// reset all callback functions
-	callback_all=rc_null_func;
-	for(i=0;i<MAX_UNIQUE_MSG_TYPES;i++) callback[i]=rc_null_func;
-	// finally make sure
-	listening_shutdown_flag=0;
-	pthread_create(&listen_thread,NULL,listening_func,NULL);
-	return 0;
-}
-
-rc_mav_register_callback(void * fn_ptr)
-{
-
-}
-
 void* listening_func(__unused void* ptr){
 	ssize_t recsize;
 	uint8_t buf[BUFFER_LENGTH];
@@ -335,3 +318,46 @@ void* listening_func(__unused void* ptr){
 	listening_flag=0;
 }
 */
+
+
+
+// callback setters
+int rc_mav_set_callback(int msg_id, void (*func)(void)){
+	if(msg_id<0 || msg_id>MAX_UNIQUE_MSG_TYPES){
+		fprintf(stderr,"ERROR: in rc_mav_set_callback, msg_id out of bounds\n");
+		return -1;
+	}
+	if(func==NULL){
+		fprintf(stderr,"ERROR: in rc_mav_set_callback, received NULL pointer\n");
+		return -1;
+	}
+	callbacks[msg_id]=func;
+	return 0;
+}
+
+
+int rc_mav_set_callback_all(void (*func)(void)){
+	if(func==NULL){
+		fprintf(stderr,"ERROR: in rc_mav_set_callback_all, received NULL pointer\n");
+		return -1;
+	}
+	callback_all=func;
+	return 0;
+}
+
+int rc_mav_set_connection_lost_callback(void (*func)(void)){
+	if(func==NULL){
+		fprintf(stderr,"ERROR: in rc_mav_set_connection_lost_callback, received NULL pointer\n");
+		return -1;
+	}
+	connection_lost_callback=func;
+	return 0;
+}
+
+int rc_mav_get_sys_id_of_last_msg(int msg_id){
+	if(msg_id<0 || msg_id>MAX_UNIQUE_MSG_TYPES){
+		fprintf(stderr,"ERROR: in rc_mav_get_sys_id_of_last_msg, msg_id out of bounds\n");
+		return -1;
+	}
+	return messages[msg_id].sysid;
+}
