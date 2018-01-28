@@ -95,13 +95,18 @@ int parse_args(int argc, char * argv[])
 	return 0;
 }
 
-// called by the rc_mav lib whenever a heartbeat is received
-void heartbeat_callback_func()
+// called by the rc_mav lib whenever a packet is received
+void callback_func_any()
 {
-	int sysid = rc_mav_get_sys_id_of_last_msg(MAVLINK_MSG_ID_HEARTBEAT);
-	printf("received heartbeat from sysid: %d \n", sysid);
+	int sysid = rc_mav_get_sys_id_of_last_msg_any();
+	int msg_id = rc_mav_msg_id_of_last_msg();
+	printf("received msg_id: %d ", msg_id);
+	// TODO uncomment print msg name when this works
+	//rc_mav_print_msg_name(msg_id);
+	printf("from sysid: %d \n", sysid);
 	return;
 }
+
 
 // interrupt handler to catch ctrl-c
 void signal_handler(int dummy)
@@ -141,7 +146,7 @@ int main(int argc, char * argv[])
 	}
 
 	// set the heartbeat callback to print something when receiving
-	rc_mav_set_callback(MAVLINK_MSG_ID_HEARTBEAT, heartbeat_callback_func);
+	rc_mav_set_callback_all(callback_func_any);
 	running=1;
 	while(running){
 		sleep(1);

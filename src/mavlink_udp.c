@@ -473,9 +473,21 @@ int rc_mav_msg_id_of_last_msg()
 	return msg_id_of_last_msg;
 }
 
-/* TODO
-int rc_mav_print_msg_name(int msg_id);
+
+/*
+TODO fix broken link to message_info_by_id
+int rc_mav_print_msg_name(int msg_id)
+{
+if(msg_id<0 || msg_id>MAX_UNIQUE_MSG_TYPES){
+		fprintf(stderr,"ERROR: in rc_mav_print_msg_name, msg_id out of bounds\n");
+		return -1;
+	}
+	mavlink_message_info_t* info = mavlink_get_message_info_by_id(msg_id);
+	printf("%s",info->name);
+	return 0;
+}
 */
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
