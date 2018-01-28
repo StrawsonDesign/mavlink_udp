@@ -99,7 +99,7 @@ int parse_args(int argc, char * argv[])
 void heartbeat_callback_func()
 {
 	int sysid = rc_mav_get_sys_id_of_last_msg(MAVLINK_MSG_ID_HEARTBEAT);
-	printf("received heartbeat from sysid:%d \n", sysid);
+	printf("received heartbeat from sysid: %d \n", sysid);
 	return;
 }
 

@@ -29,6 +29,17 @@
 
 
 /**
+ * Connection state based on receipt of heartbeat packets. Retrieve the current
+ * state with rc_mav_get_connection_state
+ */
+typedef enum rc_mav_connection_state_t{
+	WAITING_FOR_HEARTBEAT,
+	HEARTBEAT_CONNECTION_ACTIVE,
+	HEARTBEAT_CONNECTION_LOST
+} rc_mav_connection_state_t;
+
+
+/**
  * @brief      Initialize a UDP port for sending and receiving.
  *
  *             Initialize a UDP port for sending and receiving. Additionally
@@ -72,7 +83,6 @@ int rc_mav_set_dest_ip(const char* dest_ip);
 int rc_mav_set_system_id(uint8_t system_id);
 
 
-
 /**
  * @brief      Closes UDP port and stops network port listening thread
  *
@@ -85,8 +95,6 @@ int rc_mav_set_system_id(uint8_t system_id);
  * @return     0 on success, -1 on failure
  */
 int rc_mav_cleanup();
-
-
 
 
 /**
@@ -111,6 +119,28 @@ int rc_mav_cleanup();
  */
 int rc_mav_send_msg(mavlink_message_t msg);
 
+/**
+ * @brief      Inidcates if a particular message type has been received by not
+ *             read by the user yet.
+ *
+ * @param[in]  msg_id  The message identifier to check
+ *
+ * @return     1 if new message is available, otherwise 0
+ */
+int rc_mav_is_new_msg(int msg_id);
+
+
+/**
+ * @brief      Fetches the last received message of type msg_id
+ *
+ * @param[in]  msg_id  The message identifier to fetch
+ * @param[out] msg     place to write to message struct to
+ *
+ * @return     returns 0 on success. Returns -1 on failure, for example if no
+ *             message of type msg_id has been received.
+ */
+int rc_mav_get_msg(int msg_id, mavlink_message_t* msg);
+
 
 /**
  * @brief      assign a callback function to be called when a particular message
@@ -128,7 +158,6 @@ int rc_mav_send_msg(mavlink_message_t msg);
 int rc_mav_set_callback(int msg_id, void (*func)(void));
 
 
-
 /**
  * @brief      Sets a callback function which is called when any packet arrives.
  *
@@ -143,7 +172,6 @@ int rc_mav_set_callback(int msg_id, void (*func)(void));
 int rc_mav_set_callback_all(void (*func)(void));
 
 
-
 /**
  * @brief      Sets a callback function to be called when any heartbeat signal
  *             has not been received for 3 seconds indicating a likely dropped
@@ -156,41 +184,16 @@ int rc_mav_set_callback_all(void (*func)(void));
 int rc_mav_set_connection_lost_callback(void (*func)(void));
 
 
-
 /**
  * @brief      Gets the connection state as determined by received heartbeat
  *             packets.
  *
- *             Mavlink uses heartbeat packets generally sent at 1s intervals to
- *             determine if an active connection is open. This function will
- *             return 0 until a heartbeat packet has been received this will
- *             return 1. The connection state will transition to lost (0) if 3
- *             seconds passes without receiving a heartbeat packet.
+ *             See rc_mav_connection_state_t
  *
- * @return     Returns 1 if connection is active, 0 otherwise.
+ * @return     Returns current connection state.
  */
-int rc_mav_get_connection_state();
+rc_mav_connection_state_t rc_mav_get_connection_state();
 
-/**
- * @brief      Inidcates if a particular message type has been received by not
- *             read by the user yet.
- *
- * @param[in]  msg_id  The message identifier to check
- *
- * @return     1 if new message is available, otherwise 0
- */
-int rc_mav_is_new_msg(int msg_id);
-
-/**
- * @brief      Fetches the last received message of type msg_id
- *
- * @param[in]  msg_id  The message identifier to fetch
- * @param[out] msg     place to write to message struct to
- *
- * @return     returns 0 on success. Returns -1 on failure, for example if no
- *             message of type msg_id has been received.
- */
-int rc_mav_get_msg(int msg_id, mavlink_message_t* msg);
 
 /**
  * @brief      Fetches the system ID of the sender of the last received message.
@@ -202,7 +205,7 @@ int rc_mav_get_msg(int msg_id, mavlink_message_t* msg);
  *             example if no message of type msg_id has been received of type
  *             msg_id.
  */
-int rc_mav_get_sys_id_of_last_msg(int msg_id);
+uint8_t rc_mav_get_sys_id_of_last_msg(int msg_id);
 
 
 /**
@@ -211,7 +214,7 @@ int rc_mav_get_sys_id_of_last_msg(int msg_id);
  * @return     Returns the system ID on success. Returns -1 on failure, for
  *             example if no message has been received.
  */
-int rc_mav_get_sys_id_of_last_msg_any();
+uint8_t rc_mav_get_sys_id_of_last_msg_any();
 
 /**
  * @brief      Fetches the number of nanoseconds since the last message of type
@@ -230,8 +233,8 @@ int64_t rc_mav_ns_since_last_msg(int msg_id);
  *             received.
  *
  * @return     Returns the number of nanoseconds since any message has been
- *             received. Returns -1 on failure, for example if no message has
- *             been received.
+ *             received. Returns -1 on failure, for example if no
+ *             message has been received.
  */
 int64_t rc_mav_ns_since_last_msg_any();
 
@@ -241,7 +244,7 @@ int64_t rc_mav_ns_since_last_msg_any();
  * @return     Returns the msg_id of the last received packet. Returns -1 on
  *             failure, for example if no message has been received.
  */
-int rc_mav_id_of_last_msg();
+int rc_mav_msg_id_of_last_msg();
 
 /**
  * @brief      Prints to stdout a human-readable name for a message type.
