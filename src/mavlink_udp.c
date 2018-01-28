@@ -143,12 +143,20 @@ int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port){
 
 // background thread for handling packets
 void* __rc_mav_listen(){
-	fprintf(stderr, "listening...\n");
+	#ifdef DEBUG
+	printf("beginning of __rc_mav_listen thread\n");
+	#endif
+
+	// parse packets as they come in untill listening flag set to 0
 	listening_flag=1;
 	while (shutdown_flag==0){
 		__rc_mav_recv_msg();
 	}
-	printf("exiting rc_mav_listen\n");
+
+	#ifdef DEBUG
+	printf("exiting __rc_mav_listen thread\n");
+	#endif
+
 	return 0;
 }
 
