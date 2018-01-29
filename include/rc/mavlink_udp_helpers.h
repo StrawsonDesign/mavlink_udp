@@ -636,7 +636,7 @@ int rc_mav_get_manual_control(mavlink_manual_control_t* data);
  *
  * @return     0 on success, -1 on failure
  */
-int rc_mav_att_pos_mocap(
+int rc_mav_send_att_pos_mocap(
 	float q[4],
 	float x,
 	float y,

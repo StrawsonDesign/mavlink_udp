@@ -72,7 +72,6 @@ static int listening_init_flag=0;
 static void __null_func();
 static uint64_t __nanos_since_boot();
 static void* __listen_thread_func();
-static int __recv_msg();
 static int __address_init(struct sockaddr_in* address, const char* dest_ip, uint16_t port);
 int __get_msg_common_checks(int msg_id);
 
@@ -99,6 +98,14 @@ static uint64_t __nanos_since_boot()
 // background thread for handling packets
 void* __listen_thread_func()
 {
+	int i;
+	uint64_t time;
+	ssize_t num_bytes_rcvd;;
+	uint8_t buf[BUFFER_LENGTH];
+	socklen_t addr_len = sizeof my_address;
+	mavlink_message_t msg;
+	mavlink_status_t parse_status;
+
 	#ifdef DEBUG
 	printf("beginning of __listen_thread_func thread\n");
 	#endif
@@ -106,7 +113,42 @@ void* __listen_thread_func()
 	// parse packets as they come in untill listening flag set to 0
 	listening_flag=1;
 	while (shutdown_flag==0){
-		__recv_msg();
+		memset(buf, 0, BUFFER_LENGTH);
+		num_bytes_rcvd = recvfrom(sock_fd, buf, BUFFER_LENGTH, 0, (struct sockaddr *) &my_address, &addr_len);
+
+		// do mavlink's silly byte-wise parsing method
+		for (i = 0; i<num_bytes_rcvd; ++i){
+			// parse on channel 0(MAVLINK_COMM_0)
+			if (mavlink_parse_char(MAVLINK_COMM_0, buf[i], &msg, &parse_status)){
+				#ifdef DEBUG
+				printf("\nReceived packet: SYSID: %d, MSG ID: %d\n", msg.sysid, msg.msgid);
+				#endif
+				// update timestamps and received flag
+				time = __nanos_since_boot();
+				ns_of_last_msg[msg.msgid]=time;
+				ns_of_last_msg_any = time;
+				received_flag[msg.msgid] = 1;
+				new_msg_flag[msg.msgid] = 1;
+				sys_id_of_last_msg=msg.sysid;
+				msg_id_of_last_msg=msg.msgid;
+
+				// save local copy of message
+				messages[msg.msgid]=msg;
+
+				// if it's a heartbeat packet, update connection state
+				// and record when last heartbeat was received
+				if(msg.msgid == MAVLINK_MSG_ID_HEARTBEAT){
+					connection_state = HEARTBEAT_CONNECTION_ACTIVE;
+					ns_of_last_heartbeat=time;
+				}
+
+				// run the generic callback
+				callback_all();
+				// run the msg-specific callback
+				callbacks[msg.msgid]();
+
+			}
+		}
 	}
 
 	#ifdef DEBUG
@@ -116,53 +158,6 @@ void* __listen_thread_func()
 	return 0;
 }
 
-// pulls one msg from the network buffer
-int __recv_msg()
-{
-	int i;
-	uint64_t time;
-	ssize_t num_bytes_rcvd;;
-	uint8_t buf[BUFFER_LENGTH];
-	socklen_t addr_len = sizeof my_address;
-	mavlink_message_t msg;
-	mavlink_status_t parse_status;
-
-	memset(buf, 0, BUFFER_LENGTH);
-	num_bytes_rcvd = recvfrom(sock_fd, buf, BUFFER_LENGTH, 0, (struct sockaddr *) &my_address, &addr_len);
-
-	// do mavlink's silly byte-wise parsing method
-	for (i = 0; i<num_bytes_rcvd; ++i){
-		// parse on channel 0(MAVLINK_COMM_0)
-		if (mavlink_parse_char(MAVLINK_COMM_0, buf[i], &msg, &parse_status)){
-			#ifdef DEBUG
-			printf("\nReceived packet: SYSID: %d, MSG ID: %d\n", msg.sysid, msg.msgid);
-			#endif
-			// update timestamps and received flag
-			time = __nanos_since_boot();
-			ns_of_last_msg[msg.msgid]=time;
-			ns_of_last_msg_any = time;
-			received_flag[msg.msgid] = 1;
-			new_msg_flag[msg.msgid] = 1;
-			sys_id_of_last_msg=msg.sysid;
-
-			// if it's a heartbeat packet, update connection state
-			// and record when last heartbeat was received
-			if(msg.msgid == MAVLINK_MSG_ID_HEARTBEAT){
-				connection_state = HEARTBEAT_CONNECTION_ACTIVE;
-				ns_of_last_heartbeat=time;
-			}
-			// save local copy of message
-			messages[msg.msgid]=msg;
-			// run the generic callback
-			callback_all();
-			// run the msg-specific callback
-			callbacks[msg.msgid]();
-
-		}
-	}
-
-	return 0;
-}
 
 // configures sockaddr_in struct for UDP port
 int __address_init(struct sockaddr_in* address, const char* dest_ip, uint16_t port)
@@ -507,25 +502,34 @@ int rc_mav_send_heartbeat_abbreviated()
 }
 
 
-int rc_mav_send_heartbeat(	uint32_t custom_mode,
-				uint8_t type,
-				uint8_t autopilot,
-				uint8_t base_mode,
-				uint8_t system_status)
+int rc_mav_send_heartbeat(uint32_t custom_mode, uint8_t type, uint8_t autopilot, uint8_t base_mode, uint8_t system_status)
 {
-	// sanity check
 	mavlink_message_t msg;
 	mavlink_msg_heartbeat_pack(system_id, MAV_COMP_ID_ALL, &msg, type, autopilot, base_mode, custom_mode, system_status);
-	if(rc_mav_send_msg(msg)){
-		fprintf(stderr, "ERROR: in rc_mav_send_heartbeat, failed to send\n");
-		return -1;
-	}
-	return 0;
+	return rc_mav_send_msg(msg);
 }
 
 int rc_mav_get_heartbeat(mavlink_heartbeat_t* data)
 {
 	if(__get_msg_common_checks(MAVLINK_MSG_ID_HEARTBEAT)) return -1;
 	mavlink_msg_heartbeat_decode(&messages[MAVLINK_MSG_ID_HEARTBEAT], data);
+	return 0;
+}
+
+
+
+
+int rc_mav_send_att_pos_mocap(float q[4], float x, float y, float z)
+{
+	mavlink_message_t msg;
+	uint64_t time_usec = __nanos_since_boot()/1000;
+	mavlink_msg_att_pos_mocap_pack(system_id, MAV_COMP_ID_ALL, &msg, time_usec, q, x, y, z);
+	return rc_mav_send_msg(msg);
+}
+
+int rc_mav_get_att_pos_mocap(mavlink_att_pos_mocap_t* data)
+{
+	if(__get_msg_common_checks(MAVLINK_MSG_ID_ATT_POS_MOCAP)) return -1;
+	mavlink_msg_att_pos_mocap_decode(&messages[MAVLINK_MSG_ID_ATT_POS_MOCAP], data);
 	return 0;
 }
