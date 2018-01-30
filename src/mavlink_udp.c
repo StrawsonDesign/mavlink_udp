@@ -70,7 +70,7 @@ static int listening_init_flag=0;
 
 // private local function declarations;
 static void __null_func();
-static uint64_t __nanos_since_boot();
+static uint64_t __us_since_boot();
 static void* __listen_thread_func();
 static int __address_init(struct sockaddr_in* address, const char* dest_ip, uint16_t port);
 int __get_msg_common_checks(int msg_id);
@@ -88,11 +88,11 @@ static void __null_func()
 
 // Returns the number of nanoseconds since boot using system CLOCK_MONOTONIC
 // This function itself takes about 1100ns to complete on a BBB at 1ghz under ideal
-static uint64_t __nanos_since_boot()
+static uint64_t __us_since_boot()
 {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ((uint64_t)ts.tv_sec*1000000000)+ts.tv_nsec;
+	return ((uint64_t)ts.tv_sec*1000000)+(ts.tv_nsec/1000);
 }
 
 // background thread for handling packets
@@ -124,7 +124,7 @@ void* __listen_thread_func()
 				printf("\nReceived packet: SYSID: %d, MSG ID: %d\n", msg.sysid, msg.msgid);
 				#endif
 				// update timestamps and received flag
-				time = __nanos_since_boot();
+				time = __us_since_boot();
 				ns_of_last_msg[msg.msgid]=time;
 				ns_of_last_msg_any = time;
 				received_flag[msg.msgid] = 1;
@@ -442,7 +442,7 @@ int64_t rc_mav_ns_since_last_msg(int msg_id)
 	// if no packet received
 	if(ns_of_last_msg[msg_id]==UINT64_MAX) return -1;
 	// else get current time and subtract;
-	return __nanos_since_boot()-ns_of_last_msg[msg_id];
+	return __us_since_boot()-ns_of_last_msg[msg_id];
 }
 
 int64_t rc_mav_ns_since_last_msg_any()
@@ -454,7 +454,7 @@ int64_t rc_mav_ns_since_last_msg_any()
 	// if no packet received
 	if(ns_of_last_msg_any==UINT64_MAX) return -1;
 	// else get current time and subtract;
-	return __nanos_since_boot()-ns_of_last_msg_any;
+	return __us_since_boot()-ns_of_last_msg_any;
 }
 
 
@@ -467,22 +467,6 @@ int rc_mav_msg_id_of_last_msg()
 	}
 	return msg_id_of_last_msg;
 }
-
-
-/*
-TODO fix broken link to message_info_by_id
-int rc_mav_print_msg_name(int msg_id)
-{
-if(msg_id<0 || msg_id>MAX_UNIQUE_MSG_TYPES){
-		fprintf(stderr,"ERROR: in rc_mav_print_msg_name, msg_id out of bounds\n");
-		return -1;
-	}
-	mavlink_message_info_t* info = mavlink_get_message_info_by_id(msg_id);
-	printf("%s",info->name);
-	return 0;
-}
-*/
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -517,13 +501,259 @@ int rc_mav_get_heartbeat(mavlink_heartbeat_t* data)
 }
 
 
+int rc_mav_send_attitude(
+	float roll,
+	float pitch,
+	float yaw,
+	float rollspeed,
+	float pitchspeed,
+	float yawspeed)
+{
+	mavlink_message_t msg;
+	mavlink_msg_attitude_pack(system_id, MAV_COMP_ID_ALL, &msg, __us_since_boot()/1000, roll, pitch, yaw, rollspeed, pitchspeed, yawspeed);
+	return rc_mav_send_msg(msg);
+}
 
+int rc_mav_get_attitude(mavlink_attitude_t* data)
+{
+	if(__get_msg_common_checks(MAVLINK_MSG_ID_ATTITUDE)) return -1;
+	mavlink_msg_attitude_decode(&messages[MAVLINK_MSG_ID_ATTITUDE], data);
+	return 0;
+}
+
+
+int rc_mav_send_attitude_quaternion(
+	float q1,
+	float q2,
+	float q3,
+	float q4,
+	float rollspeed,
+	float pitchspeed,
+	float yawspeed)
+{
+	mavlink_message_t msg;
+	mavlink_msg_attitude_quaternion_pack(system_id, MAV_COMP_ID_ALL, &msg, __us_since_boot()/1000, q1, q2, q3, q4, rollspeed, pitchspeed, yawspeed);
+	return rc_mav_send_msg(msg);
+}
+
+int rc_mav_get_attitude_quaternion(mavlink_attitude_quaternion_t* data)
+{
+	if(__get_msg_common_checks(MAVLINK_MSG_ID_ATTITUDE_QUATERNION)) return -1;
+	mavlink_msg_attitude_quaternion_decode(&messages[MAVLINK_MSG_ID_ATTITUDE_QUATERNION], data);
+	return -1;
+}
+
+
+int rc_mav_send_local_position_ned(
+	float x,
+	float y,
+	float z,
+	float vx,
+	float vy,
+	float vz)
+{
+	mavlink_message_t msg;
+	mavlink_msg_local_position_ned_pack(system_id, MAV_COMP_ID_ALL, &msg, __us_since_boot()/1000, x, y, z, vx, vy, vz);
+	return rc_mav_send_msg(msg);
+}
+
+int rc_mav_get_local_position_ned(mavlink_local_position_ned_t* data)
+{
+	if(__get_msg_common_checks(MAVLINK_MSG_ID_LOCAL_POSITION_NED)) return -1;
+	mavlink_msg_local_position_ned_decode(&messages[MAVLINK_MSG_ID_LOCAL_POSITION_NED], data);
+	return -1;
+}
+
+
+int rc_mav_send_global_position_int(
+	int32_t lat,
+	int32_t lon,
+	int32_t alt,
+	int32_t relative_alt,
+	int16_t vx,
+	int16_t vy,
+	int16_t vz,
+	uint16_t hdg)
+{
+	mavlink_message_t msg;
+	mavlink_msg_global_position_int_pack(system_id, MAV_COMP_ID_ALL, &msg, __us_since_boot()/1000, lat, lon, alt,relative_alt, vx, vy, vz, hdg);
+	return rc_mav_send_msg(msg);
+}
+
+int rc_mav_get_global_position_int(mavlink_global_position_int_t* data)
+{
+	if(__get_msg_common_checks(MAVLINK_MSG_ID_GLOBAL_POSITION_INT)) return -1;
+	mavlink_msg_global_position_int_decode(&messages[MAVLINK_MSG_ID_GLOBAL_POSITION_INT], data);
+	return -1;
+}
+
+
+int rc_mav_send_set_position_target_local_ned(
+	float x,
+	float y,
+	float z,
+	float vx,
+	float vy,
+	float vz,
+	float afx,
+	float afy,
+	float afz,
+	float yaw,
+	float yaw_rate,
+	uint16_t type_mask,
+	uint8_t target_system,
+	uint8_t target_component,
+	uint8_t coordinate_frame)
+{
+	mavlink_message_t msg;
+	mavlink_msg_set_position_target_local_ned_pack(system_id, MAV_COMP_ID_ALL, &msg, __us_since_boot()/1000, target_system, target_component, coordinate_frame, type_mask, x, y, z, vx, vy, vz, afx, afy, afz, yaw, yaw_rate);
+	return rc_mav_send_msg(msg);
+}
+
+int rc_mav_get_set_position_target_local_ned(mavlink_set_position_target_local_ned_t* data)
+{
+	if(__get_msg_common_checks(MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED)) return -1;
+	mavlink_msg_set_position_target_local_ned_decode(&messages[MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED], data);
+	return -1;
+}
+
+
+/*
+int rc_mav_send_set_position_target_global_int(
+	int32_t lat_int,
+	int32_t lon_int,
+	float alt,
+	float vx,
+	float vy,
+	float vz,
+	float afx,
+	float afy,
+	float afz,
+	float yaw,
+	float yaw_rate,
+	uint16_t type_mask,
+	uint8_t coordinate_frame)
+{
+
+}
+
+int rc_mav_get_set_position_target_global_int(mavlink_set_position_target_global_int_t* data)
+{
+
+}
+
+
+int rc_mav_send_gps_raw_int(
+	int32_t lat,
+	int32_t lon,
+	int32_t alt,
+	uint16_t eph,
+	uint16_t epv,
+	uint16_t vel,
+	uint16_t cog,
+	uint8_t fix_type,
+	uint8_t satellites_visible,
+	int32_t alt_ellipsoid,
+	uint32_t h_acc,
+	uint32_t v_acc,
+	uint32_t vel_acc,
+	uint32_t hdg_acc)
+{
+
+}
+
+int rc_mav_get_gps_raw_int(mavlink_gps_raw_int_t* data)
+{
+
+}
+
+
+
+int rc_mav_send_scaled_pressure(
+	float press_abs,
+	float press_diff,
+	int16_t temperature)
+{
+
+}
+int rc_mav_get_raw_pressure(mavlink_raw_pressure_t* data)
+{
+
+}
+
+int rc_mav_send_servo_output_raw(
+	uint16_t servo1_raw,
+	uint16_t servo2_raw,
+	uint16_t servo3_raw,
+	uint16_t servo4_raw,
+	uint16_t servo5_raw,
+	uint16_t servo6_raw,
+	uint16_t servo7_raw,
+	uint16_t servo8_raw,
+	uint8_t port,
+	uint16_t servo9_raw,
+	uint16_t servo10_raw,
+	uint16_t servo11_raw,
+	uint16_t servo12_raw,
+	uint16_t servo13_raw,
+	uint16_t servo14_raw,
+	uint16_t servo15_raw,
+	uint16_t servo16_raw)
+{
+
+}
+int rc_mav_get_servo_output_raw(mavlink_servo_output_raw_t* data)
+{
+
+}
+
+
+int rc_mav_send_sys_status(
+	uint32_t onboard_control_sensors_present,
+	uint32_t onboard_control_sensors_enabled,
+	uint32_t onboard_control_sensors_health,
+	uint16_t load,
+	uint16_t voltage_battery,
+	int16_t current_battery,
+	uint16_t drop_rate_comm,
+	uint16_t errors_comm,
+	uint16_t errors_count1,
+	uint16_t errors_count2,
+	uint16_t errors_count3,
+	uint16_t errors_count4,
+	int8_t battery_remaining)
+{
+
+}
+
+int rc_mav_get_sys_status(mavlink_sys_status_t* data)
+{
+
+}
+
+
+
+int rc_mav_send_manual_control(
+	int16_t x,
+	int16_t y,
+	int16_t z,
+	int16_t r,
+	uint16_t buttons,
+	uint8_t target)
+{
+
+}
+
+int rc_mav_get_manual_control(mavlink_manual_control_t* data)
+{
+
+}
+*/
 
 int rc_mav_send_att_pos_mocap(float q[4], float x, float y, float z)
 {
 	mavlink_message_t msg;
-	uint64_t time_usec = __nanos_since_boot()/1000;
-	mavlink_msg_att_pos_mocap_pack(system_id, MAV_COMP_ID_ALL, &msg, time_usec, q, x, y, z);
+	mavlink_msg_att_pos_mocap_pack(system_id, MAV_COMP_ID_ALL, &msg, __us_since_boot(), q, x, y, z);
 	return rc_mav_send_msg(msg);
 }
 

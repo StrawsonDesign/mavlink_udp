@@ -197,14 +197,14 @@ int rc_mav_get_local_position_ned(mavlink_local_position_ned_t* data);
  * @return     0 on success, -1 on failure
  */
 int rc_mav_send_global_position_int(
-	int32_t lat,		//
-	int32_t lon,		//
-	int32_t alt,		//
-	int32_t relative_alt,	//
-	int16_t vx,		//
-	int16_t vy,		//
-	int16_t vz,		//
-	uint16_t hdg);		//
+	int32_t lat,
+	int32_t lon,
+	int32_t alt,
+	int32_t relative_alt,
+	int16_t vx,
+	int16_t vy,
+	int16_t vz,
+	uint16_t hdg);
 
 /**
  * @brief      Fetches and unpacks the last received

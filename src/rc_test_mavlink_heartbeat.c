@@ -103,7 +103,7 @@ void callback_func_any()
 	printf("received msg_id: %d ", msg_id);
 	// TODO uncomment print msg name when this works
 	//rc_mav_print_msg_name(msg_id);
-	printf("from sysid: %d \n", sysid);
+	printf(" from sysid: %d \n", sysid);
 	return;
 }
 
