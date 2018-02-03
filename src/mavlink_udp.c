@@ -30,11 +30,11 @@
 
 #include <rc/mavlink_udp.h>
 
-#define BUFFER_LENGTH		512 // common networking buffer size
+#define BUFFER_LENGTH			512 // common networking buffer size
 #define MAX_UNIQUE_MSG_TYPES	256
-#define HEARTBEAT_TIMEOUT	3
+#define HEARTBEAT_TIMEOUT		3
 #define MAX_PENDING_CONNECTIONS	32
-#define LOCALHOST_IP "127.0.0.1"
+#define LOCALHOST_IP 			"127.0.0.1"
 
 
 // connection stuff
@@ -44,6 +44,7 @@ static int current_port;
 static struct sockaddr_in my_address ;
 static struct sockaddr_in dest_address;
 static uint8_t system_id;
+struct timeval rcv_timeo;
 
 // callbacks
 static void (*callbacks[MAX_UNIQUE_MSG_TYPES])(void);
@@ -110,15 +111,28 @@ void* __listen_thread_func()
 	printf("beginning of __listen_thread_func thread\n");
 	#endif
 
-	// parse packets as they come in untill listening flag set to 0
+	// parse packets as they come in until listening flag set to 0
 	listening_flag=1;
 	while (shutdown_flag==0){
 		memset(buf, 0, BUFFER_LENGTH);
 		num_bytes_rcvd = recvfrom(sock_fd, buf, BUFFER_LENGTH, 0, (struct sockaddr *) &my_address, &addr_len);
 
+		if (num_bytes_rcvd <= 0){
+			// perror("In listening function: ");
+			if (errno == EAGAIN || errno == EWOULDBLOCK){
+				//check last hearbeat time > HEARTBEAT_TIMEOUT then throw warning no heartbeat rcvd
+				// fix these units, micros and nanos dont make sense
+				int elapsed = __us_since_boot() - ns_of_last_heartbeat;
+				if (elapsed > 300000){
+					connection_state = HEARTBEAT_CONNECTION_LOST;
+					fprintf(stderr, "!!!!!!!!!! HEARTBEAT LOST !!!!!!!!!!\n");
+				}
+				continue;
+			}
+		}
 		// do mavlink's silly byte-wise parsing method
-		for (i = 0; i<num_bytes_rcvd; ++i){
-			// parse on channel 0(MAVLINK_COMM_0)
+		for (i = 0; i < num_bytes_rcvd; ++i){
+			// parse on channel 0 (MAVLINK_COMM_0)
 			if (mavlink_parse_char(MAVLINK_COMM_0, buf[i], &msg, &parse_status)){
 				#ifdef DEBUG
 				printf("\nReceived packet: SYSID: %d, MSG ID: %d\n", msg.sysid, msg.msgid);
@@ -146,7 +160,6 @@ void* __listen_thread_func()
 				callback_all();
 				// run the msg-specific callback
 				callbacks[msg.msgid]();
-
 			}
 		}
 	}
@@ -246,6 +259,13 @@ int rc_mav_init(uint8_t sysid, const char* dest_ip, uint16_t port)
 	// fill out rest of sockaddr_in struct
 	if (__address_init(&my_address, 0, current_port) != 0){
 		fprintf(stderr, "ERROR: in rc_mav_init: couldn't set local address\n");
+		return -1;
+	}
+
+	rcv_timeo.tv_sec = HEARTBEAT_TIMEOUT;
+	rcv_timeo.tv_usec = 0;
+	if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *)&rcv_timeo, sizeof (struct timeval)) < 0){
+		perror("ERROR: in rc_mav_init: ");
 		return -1;
 	}
 
@@ -400,7 +420,6 @@ int rc_mav_set_connection_lost_callback(void (*func)(void))
 	return 0;
 }
 
-
 rc_mav_connection_state_t rc_mav_get_connection_state()
 {
 	return connection_state;
@@ -456,8 +475,6 @@ int64_t rc_mav_ns_since_last_msg_any()
 	// else get current time and subtract;
 	return __us_since_boot()-ns_of_last_msg_any;
 }
-
-
 
 int rc_mav_msg_id_of_last_msg()
 {
