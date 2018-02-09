@@ -634,8 +634,6 @@ int rc_mav_get_set_position_target_local_ned(mavlink_set_position_target_local_n
 	return -1;
 }
 
-
-/*
 int rc_mav_send_set_position_target_global_int(
 	int32_t lat_int,
 	int32_t lon_int,
@@ -651,12 +649,16 @@ int rc_mav_send_set_position_target_global_int(
 	uint16_t type_mask,
 	uint8_t coordinate_frame)
 {
-
+	mavlink_message_t msg;
+	mavlink_msg_set_position_target_global_int_pack(system_id, MAV_COMP_ID_ALL, &msg, __us_since_boot()/1000, target_system, target_component, coordinate_frame, type_mask, lat_int, lon_int, alt, vx, vy, vz, afx, afy, afz, yaw, yaw_rate);
+	return rc_mav_send_msg(msg);
 }
 
 int rc_mav_get_set_position_target_global_int(mavlink_set_position_target_global_int_t* data)
 {
-
+	if(__get_msg_common_checks(MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED)) return -1;
+	mavlink_msg_set_position_target_local_ned_decode(&messages[MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED], data);
+	return -1;
 }
 
 

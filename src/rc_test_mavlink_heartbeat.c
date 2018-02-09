@@ -149,7 +149,7 @@ int main(int argc, char * argv[])
 	rc_mav_set_callback_all(callback_func_any);
 	running=1;
 	while(running){
-		sleep(1);
+		sleep(10);
 		if(rc_mav_send_heartbeat_abbreviated()){
 			fprintf(stderr,"failed to send heartbeat\n");
 		}
