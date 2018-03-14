@@ -24,8 +24,8 @@
 #include <rc/mavlink/mavlink_types.h>
 #include <rc/mavlink_udp_helpers.h>
 
-#define RC_MAV_DEFAULT_UDP_PORT	14551
-#define RC_MAV_DEFAULT_CONNECTION_TIMEOUT_US 2000000
+#define RC_MAV_DEFAULT_UDP_PORT			14551
+#define RC_MAV_DEFAULT_CONNECTION_TIMEOUT_US	2000000
 
 
 /**
@@ -179,9 +179,10 @@ int rc_mav_set_callback_all(void (*func)(void));
 
 
 /**
- * @brief      Sets a callback function to be called when any heartbeat signal
- *             has not been received for 3 seconds indicating a likely dropped
- *             connection.
+ * @brief      Sets a callback function to be called when connection_timeout has
+ *             been reached without receiving any messages.
+ *
+ *             connection_timeout is set with rc_mav_init
  *
  * @param[in]  func  The callback function
  *
