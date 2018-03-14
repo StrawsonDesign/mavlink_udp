@@ -107,6 +107,12 @@ void callback_func_any()
 	return;
 }
 
+void callback_func_connection_lost()
+{
+	fprintf(stderr,"CONNECTION LOST\n");
+	return;
+}
+
 
 // interrupt handler to catch ctrl-c
 void signal_handler(int dummy)
@@ -141,15 +147,16 @@ int main(int argc, char * argv[])
 	signal(SIGINT, signal_handler);
 
 	// initialize the UDP port and listening thread with the rc_mav lib
-	if (rc_mav_init(my_sys_id, dest_ip, port) < 0){
+	if(rc_mav_init(my_sys_id, dest_ip, port,RC_MAV_DEFAULT_CONNECTION_TIMEOUT_US)<0){
 		return -1;
 	}
 
 	// set the heartbeat callback to print something when receiving
 	rc_mav_set_callback_all(callback_func_any);
+	rc_mav_set_callback_connection_lost(callback_func_connection_lost);
 	running=1;
 	while(running){
-		sleep(10);
+		sleep(1);
 		if(rc_mav_send_heartbeat_abbreviated()){
 			fprintf(stderr,"failed to send heartbeat\n");
 		}

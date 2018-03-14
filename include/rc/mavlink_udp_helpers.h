@@ -317,6 +317,8 @@ int rc_mav_get_set_position_target_local_ned(mavlink_set_position_target_local_n
  *                               2: y, bit 3: z, bit 4: vx, bit 5: vy, bit 6:
  *                               vz, bit 7: ax, bit 8: ay, bit 9: az, bit 10: is
  *                               force setpoint, bit 11: yaw, bit 12: yaw rate
+ * @param[in]  target_system     System ID
+ * @param[in]  target_component  Component ID
  * @param[in]  coordinate_frame  Valid options are: MAV_FRAME_GLOBAL_INT = 5,
  *                               MAV_FRAME_GLOBAL_RELATIVE_ALT_INT = 6,
  *                               MAV_FRAME_GLOBAL_TERRAIN_ALT_INT = 11
@@ -336,6 +338,8 @@ int rc_mav_send_set_position_target_global_int(
 	float yaw,
 	float yaw_rate,
 	uint16_t type_mask,
+	uint8_t target_system,
+	uint8_t target_component,
 	uint8_t coordinate_frame);
 
 /**
@@ -439,7 +443,7 @@ int rc_mav_send_scaled_pressure(
  *
  * @return     0 on success, -1 on failure
  */
-int rc_mav_get_raw_pressure(mavlink_raw_pressure_t* data);
+int rc_mav_get_scaled_pressure(mavlink_scaled_pressure_t* data);
 
 
 

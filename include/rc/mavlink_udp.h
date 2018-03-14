@@ -22,12 +22,10 @@
 // these are directly from the mavlink source
 #include <rc/mavlink/common/mavlink.h>
 #include <rc/mavlink/mavlink_types.h>
-
-
 #include <rc/mavlink_udp_helpers.h>
 
-
 #define RC_MAV_DEFAULT_UDP_PORT	14551
+#define RC_MAV_DEFAULT_CONNECTION_TIMEOUT_US 2000000
 
 
 /**
@@ -35,9 +33,9 @@
  * state with rc_mav_get_connection_state
  */
 typedef enum rc_mav_connection_state_t{
-	WAITING_FOR_HEARTBEAT,
-	HEARTBEAT_CONNECTION_ACTIVE,
-	HEARTBEAT_CONNECTION_LOST
+	MAV_CONNECTION_WAITING,
+	MAV_CONNECTION_ACTIVE,
+	MAV_CONNECTION_LOST
 } rc_mav_connection_state_t;
 
 
@@ -48,15 +46,21 @@ typedef enum rc_mav_connection_state_t{
  *             starts a listening thread that handles incomming packets and
  *             makes them available with the remaining functions in this API.
  *
- * @param[in]  system_id  The system id of this device tagged in outgoing
- *                        packets
- * @param[in]  dest_ip    The destination ip, can be changed later with
- *                        rc_mav_set_dest_ip
- * @param[in]  port       Port to listen on and send to
+ * @param[in]  system_id              The system id of this device tagged in
+ *                                    outgoing packets
+ * @param[in]  dest_ip                The destination ip, can be changed later
+ *                                    with rc_mav_set_dest_ip
+ * @param[in]  port                   Port to listen on and send to
+ * @param[in]  connection_timeout_us  microseconds since last received packet to
+ *                                    consider connection lost, after which
+ *                                    point rc_mav_connection_state will change
+ *                                    to MAV_CONNECTION_LOST and the
+ *                                    connection-lost callback will be called if
+ *                                    set. Should be >=200000
  *
  * @return     0 on success, -1 on failure
  */
-int rc_mav_init(uint8_t system_id, const char* dest_ip, uint16_t port);
+int rc_mav_init(uint8_t system_id, const char* dest_ip, uint16_t port, uint64_t connection_timeout_us);
 
 /**
  * @brief      Sets the destination ip address for sent packets.
@@ -183,7 +187,7 @@ int rc_mav_set_callback_all(void (*func)(void));
  *
  * @return     0 on success, -1 on failure
  */
-int rc_mav_set_connection_lost_callback(void (*func)(void));
+int rc_mav_set_callback_connection_lost(void (*func)(void));
 
 
 /**
