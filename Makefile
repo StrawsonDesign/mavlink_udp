@@ -8,7 +8,7 @@ BINDIR		:= bin
 
 # This is a general use makefile for robotics cape projects written in C.
 # Just change the target name to match your main source code filename.
-TARGETS = $(BINDIR)/rc_test_mavlink_heartbeat
+TARGETS = $(BINDIR)/rc_test_mavlink
 
 
 CC		:= gcc

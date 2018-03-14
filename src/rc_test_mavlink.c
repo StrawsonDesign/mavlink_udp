@@ -1,5 +1,6 @@
 /**
- * @file rc_test_mavlink_heartbeat
+ * @file rc_test_mavlink
+ * @example rc_test_mavlink
  *
  * @brief      Basic Mavlink UDP heartbeat tester.
  *
@@ -37,7 +38,7 @@ int running;
 
 void print_usage()
 {
-	fprintf(stderr,"usage: rc_test_mavlink_heartbeat [-h] [-a dest_ip_addr] [-p port] [-s sys_id]\n");
+	fprintf(stderr,"usage: rc_test_mavlink [-h] [-a dest_ip_addr] [-p port] [-s sys_id]\n");
 	return;
 }
 
